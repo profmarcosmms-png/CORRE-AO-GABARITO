@@ -359,6 +359,10 @@
         <button class="btn btn-gold btn-sm" id="btnCamera">📷 Tirar foto agora</button>
         <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
       </div>
+      <div class="toolbar no-print" id="btnProcessarTudoWrap" style="margin-top:14px;display:none">
+        <button class="btn btn-primary" id="btnProcessarTudo">⚡ Analisar e confirmar tudo</button>
+        <span style="font-size:.8rem;color:var(--gray-600);align-self:center">Lê e confirma automaticamente as fotos em que reconhecer o aluno com segurança; as demais ficam para você revisar manualmente.</span>
+      </div>
       <div id="pendingList"></div>
     </div>
 
@@ -624,7 +628,7 @@ function bestMatches(nomeLido, roster, topN=3){
     const rTokens = normalize(nome).split(' ').filter(Boolean);
     const common = nTokens.filter(t=>rTokens.includes(t)).length;
     const dist = levenshtein(normalize(nomeLido), normalize(nome));
-    return { idx, nome, score: common*1000 - dist };
+    return { idx, nome, common, score: common*1000 - dist };
   });
   scored.sort((a,b)=>b.score-a.score);
   return scored.slice(0, topN);
@@ -671,6 +675,8 @@ function handleFiles(fileList){
 function renderPending(){
   const wrap = document.getElementById('pendingList');
   wrap.innerHTML = '';
+  const temPendentes = pendingItems.some(p=>p.status==='pendente');
+  document.getElementById('btnProcessarTudoWrap').style.display = temPendentes ? 'flex' : 'none';
   pendingItems.forEach(item=>{
     if(item.status==='ok' && item.collapsed){
       const nomeAluno = item.alunoIndex!==null ? state.alunos[item.alunoIndex] : '(sem aluno)';
@@ -830,26 +836,30 @@ function fileToBase64(file){
   });
 }
 
+async function lerItemComIA(item){
+  const base64 = await fileToBase64(item.file);
+  const mediaType = item.file.type || 'image/jpeg';
+  const result = await callVisionAPI(base64, mediaType);
+  item.nomeLido = result.nome || '';
+  const n = state.config.numQuestoes;
+  const opts = LETTERS.slice(0, state.config.numAlternativas);
+  const respostas = Array(n).fill(null);
+  if(result.respostas){
+    for(let i=1;i<=n;i++){
+      const v = result.respostas[String(i)];
+      if(v && opts.includes(String(v).toUpperCase())) respostas[i-1] = String(v).toUpperCase();
+    }
+  }
+  item.respostas = respostas;
+}
+
 async function analyzeItem(id){
   const item = pendingItems.find(p=>p.id===id);
   if(!item) return;
   item.status='lendo';
   renderPending();
   try{
-    const base64 = await fileToBase64(item.file);
-    const mediaType = item.file.type || 'image/jpeg';
-    const result = await callVisionAPI(base64, mediaType);
-    item.nomeLido = result.nome || '';
-    const n = state.config.numQuestoes;
-    const opts = LETTERS.slice(0, state.config.numAlternativas);
-    const respostas = Array(n).fill(null);
-    if(result.respostas){
-      for(let i=1;i<=n;i++){
-        const v = result.respostas[String(i)];
-        if(v && opts.includes(String(v).toUpperCase())) respostas[i-1] = String(v).toUpperCase();
-      }
-    }
-    item.respostas = respostas;
+    await lerItemComIA(item);
     const matches = bestMatches(item.nomeLido || '', state.alunos, 1);
     if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
     item.status='revisar';
@@ -861,6 +871,66 @@ async function analyzeItem(id){
   }
   renderPending();
 }
+
+async function processarTudoAutomatico(){
+  const alvos = pendingItems.filter(p=>p.status==='pendente');
+  if(alvos.length===0) return;
+  if(state.alunos.length===0){ alert('Cadastre a lista de alunos (aba "Lista de Alunos") antes de corrigir as provas.'); return; }
+  if(state.gabarito.some(v=>!v)){ alert('Marque e salve o gabarito correto (aba "Gabarito Correto") antes de corrigir as provas.'); return; }
+
+  const btn = document.getElementById('btnProcessarTudo');
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  let okCount = 0, revisarCount = 0, erroCount = 0;
+
+  for(const item of alvos){
+    item.status = 'lendo';
+    renderPending();
+    btn.textContent = `⏳ Processando (${okCount+revisarCount+erroCount+1}/${alvos.length})…`;
+    try{
+      await lerItemComIA(item);
+      const matches = bestMatches(item.nomeLido || '', state.alunos, 1);
+      const matchConfiavel = matches.length && matches[0].common >= 1;
+      if(matchConfiavel){
+        item.alunoIndex = matches[0].idx;
+        addResultado(item.alunoIndex, item.respostas);
+        item.status = 'ok';
+        item.collapsed = true;
+        okCount++;
+      }else{
+        if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
+        item.status = 'revisar';
+        revisarCount++;
+      }
+    }catch(err){
+      console.error(err);
+      item.status = 'revisar';
+      item.nomeLido = '';
+      erroCount++;
+    }
+    renderPending();
+  }
+
+  btn.disabled = false;
+  btn.textContent = textoOriginal;
+
+  let resumo = `✔ ${okCount} corrigida(s) automaticamente.`;
+  if(revisarCount>0) resumo += ` ${revisarCount} precisa(m) de revisão manual.`;
+  if(erroCount>0) resumo += ` ${erroCount} com erro de leitura.`;
+  showToast(resumo);
+
+  if(revisarCount>0 || erroCount>0){
+    setTimeout(()=>{
+      const primeiroPendente = document.querySelector('.status-revisar');
+      const cardAlvo = primeiroPendente ? primeiroPendente.closest('.pending-card') : null;
+      if(cardAlvo) cardAlvo.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 100);
+  }else{
+    scrollToUploadArea();
+  }
+}
+
+document.getElementById('btnProcessarTudo').addEventListener('click', processarTudoAutomatico);
 
 function buildApiHeaders(){
   const apiKeyEl = document.getElementById('apiKeyInput');
