@@ -152,6 +152,20 @@
   .legenda span{display:inline-flex;align-items:center;gap:6px}
   .legenda i{width:14px;height:14px;border-radius:3px;display:inline-block}
 
+  #fabNovaFoto{
+    position:fixed; bottom:22px; right:22px; z-index:500;
+    width:60px; height:60px; border-radius:50%; border:none;
+    background:var(--gold); color:#fff; font-size:1.6rem;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow-lg); cursor:pointer;
+  }
+  #toastMsg{
+    position:fixed; top:14px; left:50%; transform:translateX(-50%);
+    background:var(--green); color:#fff; padding:11px 20px; border-radius:8px;
+    box-shadow:var(--shadow-lg); z-index:9999; font-size:.88rem; font-weight:600;
+    max-width:90%; text-align:center; display:none;
+  }
+
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
   .msg{font-size:.85rem;padding:10px 12px;border-radius:8px;margin-top:10px}
   .msg.error{background:var(--red-bg);color:var(--red)}
@@ -181,18 +195,43 @@
   }
 
   @media print{
+    @page{ size: A4 portrait; margin: 6mm; }
     header.app-header, nav.tabs, .no-print, .card.no-print{display:none !important}
     section.tab{display:none !important}
     section.tab#tab-resultados{display:block !important}
-    body{padding:0}
-    table.results th{background:#eee !important;color:#000 !important;-webkit-print-color-adjust:exact}
-    table.detalhe-table td,table.detalhe-table th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{padding:0; margin:0}
+    main{padding:0 !important; max-width:100% !important}
+    .card{box-shadow:none !important; padding:6px 4px !important; margin-bottom:10px !important; border-radius:0 !important}
+    .card h2{font-size:.95rem !important; margin-bottom:6px !important}
+    .card p.hint{display:none !important}
+    .legenda{font-size:.68rem !important; margin:4px 0 8px !important}
+
+    table.results{width:100% !important}
+    table.results th{background:#eee !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    table.results td, table.results th{
+      border:.5pt solid #555 !important; padding:5px 6px !important;
+    }
+    table.results tr{border-bottom:1pt solid #333 !important}
+
+    #detalheWrap{overflow:visible !important; width:100% !important}
+    table.detalhe-table{
+      width:100% !important; table-layout:fixed !important; font-size:6.8pt !important;
+    }
+    table.detalhe-table td, table.detalhe-table th{
+      border:.5pt solid #555 !important; padding:3px 2px !important;
+      white-space:normal !important; word-break:break-word; overflow:visible !important;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    }
+    table.detalhe-table tr{border-bottom:1pt solid #333 !important}
+    table.detalhe-table td:first-child, table.detalhe-table th:first-child{
+      width:19mm !important; position:static !important; text-align:left !important; font-size:6.5pt !important;
+    }
     #cardDetalhe{page-break-before:always}
-    table.detalhe-table td:first-child,table.detalhe-table th:first-child{position:static}
   }
 </style>
 </head>
 <body>
+<div id="toastMsg"></div>
 
 <header class="app-header">
   <div class="inner">
@@ -295,7 +334,7 @@
       <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
     </div>
 
-    <div class="card">
+    <div class="card" id="cardEnviarFotos">
       <h2>Opção A — Ler foto do cartão-resposta com IA</h2>
       <p class="hint">Envie uma ou mais fotos de cartões-resposta preenchidos (como o modelo do 3º bimestre). A IA tentará ler o nome do aluno e as respostas marcadas — <strong>sempre revise antes de confirmar</strong>.</p>
       <div class="dropzone" id="dropzone">
@@ -316,6 +355,8 @@
       <button class="btn btn-outline" id="btnManual">+ Adicionar correção manual</button>
       <div id="manualArea"></div>
     </div>
+
+    <button id="fabNovaFoto" title="Tirar próxima foto" aria-label="Tirar próxima foto">📷</button>
   </section>
 
   <!-- ============ TAB 4: RESULTADOS ============ -->
@@ -345,7 +386,7 @@
         <span><i style="background:var(--red-bg);border:1px solid var(--red)"></i> Errou (mostra a letra marcada)</span>
         <span><i style="background:var(--gray-100);border:1px solid var(--gray-200)"></i> Em branco / sem marcação</span>
       </div>
-      <div style="overflow-x:auto">
+      <div style="overflow-x:auto" id="detalheWrap">
         <table class="results detalhe-table" id="tabelaDetalhe">
           <thead></thead>
           <tbody></tbody>
@@ -481,6 +522,23 @@ function showMsg(elId, text, type){
   setTimeout(()=>{ if(el.innerHTML.includes(text)) el.innerHTML=''; }, 5000);
 }
 
+function showToast(text){
+  const t = document.getElementById('toastMsg');
+  t.textContent = text;
+  t.style.display = 'block';
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>{ t.style.display='none'; }, 2800);
+}
+
+function scrollToUploadArea(){
+  const el = document.getElementById('cardEnviarFotos');
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+document.getElementById('fabNovaFoto').addEventListener('click', ()=>{
+  document.getElementById('cameraInput').click();
+});
+
 /* ============================================================
    TAB 2: TURMA
 ============================================================ */
@@ -588,6 +646,24 @@ function renderPending(){
   const wrap = document.getElementById('pendingList');
   wrap.innerHTML = '';
   pendingItems.forEach(item=>{
+    if(item.status==='ok' && item.collapsed){
+      const nomeAluno = item.alunoIndex!==null ? state.alunos[item.alunoIndex] : '(sem aluno)';
+      const resultado = state.resultados.find(r=>r.alunoIndex===item.alunoIndex);
+      const notaTxt = resultado ? ('Nota ' + resultado.nota.toFixed(2) + ' · ' + resultado.acertos + '/' + resultado.total) : '';
+      const compact = document.createElement('div');
+      compact.className = 'card';
+      compact.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap';
+      const info = document.createElement('div');
+      info.innerHTML = `<span class="status-tag status-ok">✔ Corrigido</span> <strong style="margin-left:8px">${nomeAluno}</strong> <span style="color:var(--gray-600);margin-left:8px">${notaTxt}</span>`;
+      compact.appendChild(info);
+      const editBtn = document.createElement('button');
+      editBtn.className='btn btn-outline btn-sm';
+      editBtn.textContent='Editar';
+      editBtn.addEventListener('click', ()=>{ item.collapsed=false; item.status='revisar'; renderPending(); });
+      compact.appendChild(editBtn);
+      wrap.appendChild(compact);
+      return;
+    }
     const card = document.createElement('div');
     card.className = 'pending-card';
 
@@ -703,8 +779,12 @@ function renderPending(){
         confirmBtn.addEventListener('click', ()=>{
           if(item.alunoIndex===null){ alert('Selecione o aluno correspondente antes de confirmar.'); return; }
           addResultado(item.alunoIndex, item.respostas);
+          const nomeConfirmado = state.alunos[item.alunoIndex];
           item.status='ok';
+          item.collapsed=true;
           renderPending();
+          showToast('✔ ' + nomeConfirmado + ' corrigido! Pode tirar a próxima foto.');
+          scrollToUploadArea();
         });
         right.appendChild(confirmBtn);
       }
@@ -936,8 +1016,10 @@ function renderManualForm(){
   confirmBtn.textContent='✔ Adicionar aos resultados';
   confirmBtn.addEventListener('click', ()=>{
     if(sel.value===''){ alert('Selecione o aluno.'); return; }
+    const nomeConfirmado = state.alunos[parseInt(sel.value,10)];
     addResultado(parseInt(sel.value,10), respostas);
-    area.innerHTML = '<div class="msg ok">Correção adicionada aos resultados ✔</div>';
+    showToast('✔ ' + nomeConfirmado + ' corrigido! Pronto para o próximo.');
+    renderManualForm();
   });
   box.appendChild(confirmBtn);
 
