@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Corretor de Gabaritos - Prof. Marcos Monteiro</title>
+<title>CORGAB - Corretor de Gabaritos - Prof. Marcos Monteiro</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a365d">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CORGAB">
 <style>
   :root{
     --navy:#1a365d;
@@ -139,8 +146,8 @@
   table.results th,table.results td{border:1px solid var(--gray-200);padding:8px 10px;text-align:left}
   table.results th{background:var(--navy);color:#fff;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
   table.results tr:nth-child(even){background:var(--gray-50)}
-  .assinatura-cell{min-width:110px}
-  .assinatura-cell img{max-width:100%;max-height:32px;display:block;margin:0 auto}
+  .assinatura-cell{min-width:220px}
+  .assinatura-cell img{max-width:100%;max-height:40px;display:block;margin:0 auto}
   .nota-cell{font-weight:700}
   .nota-alta{color:var(--green);background:var(--green-bg)}
   .nota-media{color:#8a6d00;background:#fff3cd}
@@ -179,6 +186,7 @@
   .msg.info{background:#eef2fb;color:var(--navy)}
 
   .meta-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+  .print-header{display:none}
 
   @media (max-width:640px){
     header.app-header h1{font-size:1.1rem}
@@ -210,17 +218,24 @@
     .card{box-shadow:none !important; padding:4px 2px !important; margin-bottom:8px !important; border-radius:0 !important}
     .card h2{font-size:.92rem !important; margin-bottom:4px !important}
     .card p.hint{display:none !important}
+    .print-header{display:block !important; margin-bottom:6px; padding-bottom:5px; border-bottom:1.2pt solid #333}
+    .print-header .escola{font-size:11pt; font-weight:700; color:#000}
+    .print-header .linha2{font-size:8.5pt; color:#222; margin-top:2px}
     .legenda{font-size:.65rem !important; margin:3px 0 6px !important}
 
-    table.results{width:100% !important}
+    table.results{width:100% !important; table-layout:fixed !important}
+    table.results th:nth-child(1), table.results td:nth-child(1){width:8mm !important}
+    table.results th:nth-child(2), table.results td:nth-child(2){width:46mm !important}
+    .assinatura-cell{width:72mm !important}
+    table.results th:nth-child(4), table.results td:nth-child(4){width:22mm !important}
+    table.results th:nth-child(5), table.results td:nth-child(5){width:22mm !important}
     table.results th{background:#eee !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     table.results td, table.results th{
       border:.5pt solid #555 !important; padding:2px 6px !important; line-height:1.15 !important; font-size:8.5pt !important;
     }
     table.results tr{border-bottom:1pt solid #333 !important}
     table.results td.nota-cell{-webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; font-weight:700 !important}
-    .assinatura-cell{width:38mm !important}
-    .assinatura-cell img{max-height:9mm !important;width:auto !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .assinatura-cell img{max-height:15mm !important;width:auto !important;max-width:100% !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
     #detalheWrap{overflow:visible !important; width:100% !important}
     table.detalhe-table{
@@ -251,10 +266,13 @@
 <header class="app-header">
   <div class="inner">
     <div>
-      <h1>📋 Corretor de Gabaritos</h1>
-      <div class="sub">Prof. Marcos Monteiro dos Santos · Colégio Estadual Professora Helena Nasser</div>
+      <h1>📋 CORGAB</h1>
+      <div class="sub">Corretor de Gabaritos · Prof. Marcos Monteiro dos Santos · Colégio Estadual Professora Helena Nasser</div>
     </div>
-    <div class="badge">Gabarito → Turma → Correção → Resultados</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="badge">Gabarito → Turma → Correção → Resultados</div>
+      <button id="btnInstalarApp" class="btn btn-gold btn-sm" style="display:none">📲 Instalar app</button>
+    </div>
   </div>
 </header>
 
@@ -295,6 +313,8 @@
         </div>
       </div>
       <div class="meta-row" style="margin-top:16px">
+        <div><label>Escola</label><input type="text" id="metaEscola" placeholder="Ex.: Colégio Estadual Professora Helena Nasser"></div>
+        <div><label>Professor(a)</label><input type="text" id="metaProfessor" placeholder="Ex.: Prof. Marcos Monteiro dos Santos"></div>
         <div><label>Disciplina</label><input type="text" id="metaDisciplina" placeholder="Ex.: Matemática"></div>
         <div><label>Turma</label><input type="text" id="metaTurma" placeholder="Ex.: 9º D"></div>
         <div><label>Bimestre / Avaliação</label><input type="text" id="metaBimestre" placeholder="Ex.: 3º Bimestre"></div>
@@ -381,6 +401,7 @@
   <!-- ============ TAB 4: RESULTADOS ============ -->
   <section class="tab" id="tab-resultados">
     <div class="card">
+      <div class="print-header" id="printHeader1"></div>
       <h2 id="resultadosTitulo">Resultados — Opção 1: lista simples (assinatura em branco, para assinar agora)</h2>
       <p class="hint" id="resultadosSub"></p>
       <div class="toolbar no-print">
@@ -390,7 +411,7 @@
       </div>
       <table class="results" id="tabelaResultados">
         <thead>
-          <tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th class="no-print">Acertos</th><th>Nota (0-10)</th><th class="no-print">%</th><th class="no-print">Ações</th></tr>
+          <tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th>Acertos</th><th>Nota (0-10)</th><th class="no-print">%</th><th class="no-print">Ações</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -420,6 +441,7 @@
     </div>
 
     <div class="card" id="cardDetalhe">
+      <div class="print-header" id="printHeader2"></div>
       <h2>Detalhamento — questões que cada aluno acertou e errou</h2>
       <p class="hint">Pensada para imprimir no verso da folha de resultados (frente = nomes e notas, verso = este detalhamento). Não tem coluna de assinatura — só nome, acertos e erros. No navegador, escolha impressão <strong>frente e verso</strong> ou imprima as duas folhas separadamente e junte-as.</p>
       <div class="legenda">
@@ -449,7 +471,7 @@ const LS_KEY = 'corretorGabaritos_v1';
 function defaultState(){
   return {
     config: { numQuestoes: 20, numAlternativas: 4 },
-    meta: { disciplina:'', turma:'', bimestre:'', data:'' },
+    meta: { escola:'', professor:'', disciplina:'', turma:'', bimestre:'', data:'' },
     gabarito: Array(20).fill(null),
     alunos: [],
     resultados: [] // { id, alunoIndex, alunoNome, respostas:[], acertos, nota, criadoEm }
@@ -521,6 +543,8 @@ function renderGabaritoGrid(){
 function loadMetaFields(){
   document.getElementById('cfgNumQuestoes').value = state.config.numQuestoes;
   document.getElementById('cfgNumAlternativas').value = state.config.numAlternativas;
+  document.getElementById('metaEscola').value = state.meta.escola;
+  document.getElementById('metaProfessor').value = state.meta.professor;
   document.getElementById('metaDisciplina').value = state.meta.disciplina;
   document.getElementById('metaTurma').value = state.meta.turma;
   document.getElementById('metaBimestre').value = state.meta.bimestre;
@@ -540,6 +564,8 @@ document.getElementById('btnAplicarConfig').addEventListener('click', ()=>{
 });
 
 document.getElementById('btnSalvarGabarito').addEventListener('click', ()=>{
+  state.meta.escola = document.getElementById('metaEscola').value.trim();
+  state.meta.professor = document.getElementById('metaProfessor').value.trim();
   state.meta.disciplina = document.getElementById('metaDisciplina').value.trim();
   state.meta.turma = document.getElementById('metaTurma').value.trim();
   state.meta.bimestre = document.getElementById('metaBimestre').value.trim();
@@ -1163,7 +1189,24 @@ function notaClasse(nota){
   return 'nota-baixa';
 }
 
+function renderPrintHeader(){
+  const partes = [];
+  if(state.meta.professor) partes.push('Professor(a): ' + state.meta.professor);
+  if(state.meta.turma) partes.push('Turma: ' + state.meta.turma);
+  if(state.meta.disciplina) partes.push('Disciplina: ' + state.meta.disciplina);
+  if(state.meta.bimestre) partes.push(state.meta.bimestre);
+  if(state.meta.data) partes.push('Data: ' + state.meta.data);
+  const escolaHtml = state.meta.escola ? `<div class="escola">${state.meta.escola}</div>` : '';
+  const linha2Html = partes.length ? `<div class="linha2">${partes.join(' &nbsp;·&nbsp; ')}</div>` : '';
+  const html = escolaHtml + linha2Html;
+  const h1 = document.getElementById('printHeader1');
+  const h2 = document.getElementById('printHeader2');
+  if(h1) h1.innerHTML = html;
+  if(h2) h2.innerHTML = html;
+}
+
 function renderResultados(){
+  renderPrintHeader();
   const sub = [];
   if(state.meta.disciplina) sub.push(state.meta.disciplina);
   if(state.meta.turma) sub.push('Turma ' + state.meta.turma);
@@ -1189,7 +1232,7 @@ function renderResultados(){
         <td>${idx+1}</td>
         <td>${nome}</td>
         <td class="assinatura-cell">${assinaturaHtml}</td>
-        <td class="no-print">${r.acertos}/${r.total}</td>
+        <td>(${r.acertos}/${r.total})</td>
         <td class="nota-cell ${notaClasse(r.nota)}">${r.nota.toFixed(2)}</td>
         <td class="no-print">${pct}%</td>
         <td class="no-print acoes-cell"></td>
@@ -1706,8 +1749,38 @@ function init(){
   renderGabaritoGrid();
   renderRoster();
   renderResultados();
+  initPWA();
 }
 init();
+
+/* ============================================================
+   PWA — instalação como app (ícone na tela + modo standalone)
+============================================================ */
+function initPWA(){
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(err=>console.log('SW não registrado:', err.message));
+    });
+  }
+  let deferredPrompt = null;
+  const btnInstalar = document.getElementById('btnInstalarApp');
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredPrompt = e;
+    btnInstalar.style.display = 'inline-flex';
+  });
+  btnInstalar.addEventListener('click', async ()=>{
+    if(!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    btnInstalar.style.display = 'none';
+  });
+  window.addEventListener('appinstalled', ()=>{
+    btnInstalar.style.display = 'none';
+    showToast('✔ App instalado! Procure o ícone na tela do seu celular.');
+  });
+}
 </script>
 </body>
 </html>
