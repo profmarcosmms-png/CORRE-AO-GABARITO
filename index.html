@@ -140,6 +140,7 @@
   table.results th{background:var(--navy);color:#fff;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
   table.results tr:nth-child(even){background:var(--gray-50)}
   .assinatura-cell{min-width:110px}
+  .assinatura-cell img{max-width:100%;max-height:32px;display:block;margin:0 auto}
   .nota-cell{font-weight:700}
   .nota-alta{color:var(--green);background:var(--green-bg)}
   .nota-media{color:#8a6d00;background:#fff3cd}
@@ -219,6 +220,7 @@
     table.results tr{border-bottom:1pt solid #333 !important}
     table.results td.nota-cell{-webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; font-weight:700 !important}
     .assinatura-cell{width:38mm !important}
+    .assinatura-cell img{max-height:9mm !important;width:auto !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
     #detalheWrap{overflow:visible !important; width:100% !important}
     table.detalhe-table{
@@ -393,6 +395,17 @@
         <tbody></tbody>
       </table>
       <div id="msgResultados"></div>
+    </div>
+
+    <div class="card no-print" id="cardAssinaturas">
+      <h2>Preencher a coluna "Assinatura" com as assinaturas reais (recortadas da foto)</h2>
+      <p class="hint">Envie a foto (ou PDF) da lista que os alunos já assinaram. Marque 3 pontos de referência uma única vez e o app recorta a assinatura de cada aluno diretamente da foto, encaixando na tabela acima (Opção 1) — sem reimprimir a folha inteira.</p>
+      <div class="dropzone" id="sigDropzone">
+        <strong>Clique para escolher</strong> a foto ou PDF da lista já assinada<br>
+        <span style="font-size:.8rem">Não precisa de chave de API — esta etapa não usa IA</span>
+        <input type="file" id="sigFileInput" accept="image/*,application/pdf" style="display:none">
+      </div>
+      <div id="sigCalibArea"></div>
     </div>
 
     <div class="card no-print" id="cardOverlay">
@@ -1169,12 +1182,13 @@ function renderResultados(){
 
   ordenado.forEach(({idx,nome,r})=>{
     const tr = document.createElement('tr');
+    const assinaturaHtml = signatureCrops[idx] ? `<img src="${signatureCrops[idx]}" alt="assinatura">` : '';
     if(r){
       const pct = Math.round((r.acertos/r.total)*100);
       tr.innerHTML = `
         <td>${idx+1}</td>
         <td>${nome}</td>
-        <td class="assinatura-cell"></td>
+        <td class="assinatura-cell">${assinaturaHtml}</td>
         <td class="no-print">${r.acertos}/${r.total}</td>
         <td class="nota-cell ${notaClasse(r.nota)}">${r.nota.toFixed(2)}</td>
         <td class="no-print">${pct}%</td>
@@ -1194,7 +1208,7 @@ function renderResultados(){
       tr.innerHTML = `
         <td>${idx+1}</td>
         <td>${nome}</td>
-        <td class="assinatura-cell"></td>
+        <td class="assinatura-cell">${assinaturaHtml}</td>
         <td colspan="3" style="color:var(--gray-400)">ainda não corrigido</td>
         <td class="no-print acoes-cell"></td>
       `;
@@ -1481,6 +1495,178 @@ overlayFileInput.addEventListener('change', e=>{
   const f = e.target.files[0];
   if(f) loadOverlayFile(f);
   overlayFileInput.value = '';
+});
+
+/* ============================================================
+   PREENCHER ASSINATURA COM RECORTE REAL (não usa IA)
+============================================================ */
+let sigCalibState = { naturalCanvas:null, naturalWidth:0, naturalHeight:0, points:[], calibrated:false };
+let signatureCrops = []; // data URLs alinhados com o índice de state.alunos
+
+function normalizeRect(p1, p2){
+  return {
+    x1: Math.min(p1.x,p2.x), y1: Math.min(p1.y,p2.y),
+    x2: Math.max(p1.x,p2.x), y2: Math.max(p1.y,p2.y)
+  };
+}
+
+async function loadSignatureFile(file){
+  const area = document.getElementById('sigCalibArea');
+  area.innerHTML = '<div class="msg info">Carregando arquivo…</div>';
+  try{
+    const isPdf = file.type === 'application/pdf';
+    const canvas = isPdf ? await pdfFileToCanvas(file) : await imageFileToCanvas(file);
+    sigCalibState = { naturalCanvas:canvas, naturalWidth:canvas.width, naturalHeight:canvas.height, points:[], calibrated:false };
+    renderSignatureCalibUI();
+  }catch(err){
+    console.error(err);
+    area.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function drawSigPreview(canvas, scale){
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(sigCalibState.naturalCanvas, 0, 0, canvas.width, canvas.height);
+  const pts = sigCalibState.points;
+  pts.forEach((p, idx)=>{
+    ctx.beginPath();
+    ctx.arc(p.x*scale, p.y*scale, 6, 0, Math.PI*2);
+    ctx.fillStyle = ['#1a365d','#c9a227','#1e8e3e'][idx] || '#333';
+    ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+  });
+  if(pts.length>=2){
+    const r = normalizeRect(pts[0], pts[1]);
+    ctx.strokeStyle='#c62828'; ctx.lineWidth=2;
+    ctx.strokeRect(r.x1*scale, r.y1*scale, (r.x2-r.x1)*scale, (r.y2-r.y1)*scale);
+  }
+  if(pts.length===3){
+    const r1 = normalizeRect(pts[0], pts[1]);
+    const w = r1.x2-r1.x1, h = r1.y2-r1.y1;
+    ctx.strokeStyle='#1e8e3e'; ctx.lineWidth=2;
+    ctx.strokeRect(r1.x1*scale, pts[2].y*scale, w*scale, h*scale);
+  }
+}
+
+function renderSignatureCalibUI(){
+  const area = document.getElementById('sigCalibArea');
+  area.innerHTML = '';
+  if(!sigCalibState.naturalCanvas) return;
+
+  const passos = [
+    '1) Clique no canto SUPERIOR ESQUERDO da assinatura do 1º aluno da lista (' + (state.alunos[0]||'1º aluno') + ').',
+    '2) Agora clique no canto INFERIOR DIREITO dessa mesma assinatura (ainda do 1º aluno) — isso define o tamanho do recorte.',
+    '3) Por fim, clique no canto SUPERIOR ESQUERDO da assinatura do ÚLTIMO aluno da lista (' + (state.alunos[state.alunos.length-1]||'último aluno') + ').'
+  ];
+  const info = document.createElement('div');
+  if(sigCalibState.points.length < 3){
+    info.className='msg info';
+    info.textContent = passos[sigCalibState.points.length];
+  }else{
+    info.className='msg ok';
+    info.textContent = 'Calibrado! Confira os quadros na pré-visualização e clique em "Aplicar assinaturas na tabela".';
+  }
+  area.appendChild(info);
+
+  const previewWrap = document.createElement('div');
+  previewWrap.style.cssText = 'overflow:auto;border:1px solid var(--gray-200);border-radius:8px;margin-top:10px';
+  const canvas = document.createElement('canvas');
+  const maxW = Math.min(780, sigCalibState.naturalWidth);
+  const scale = maxW / sigCalibState.naturalWidth;
+  canvas.width = maxW;
+  canvas.height = Math.round(sigCalibState.naturalHeight * scale);
+  canvas.style.width = '100%';
+  canvas.style.cursor = sigCalibState.points.length < 3 ? 'crosshair' : 'default';
+  previewWrap.appendChild(canvas);
+  area.appendChild(previewWrap);
+  drawSigPreview(canvas, scale);
+
+  canvas.addEventListener('click', (e)=>{
+    if(sigCalibState.points.length >= 3) return;
+    if(state.alunos.length < 2){ alert('Cadastre pelo menos 2 alunos na aba "Lista de Alunos" antes de calibrar.'); return; }
+    const rect = canvas.getBoundingClientRect();
+    const dispX = (e.clientX-rect.left) * (canvas.width/rect.width);
+    const dispY = (e.clientY-rect.top) * (canvas.height/rect.height);
+    sigCalibState.points.push({ x: dispX/scale, y: dispY/scale });
+    if(sigCalibState.points.length===3) sigCalibState.calibrated = true;
+    renderSignatureCalibUI();
+  });
+
+  const btnRow = document.createElement('div');
+  btnRow.className='toolbar no-print';
+  btnRow.style.marginTop='10px';
+  if(sigCalibState.points.length>0){
+    const btnReset = document.createElement('button');
+    btnReset.className='btn btn-outline btn-sm';
+    btnReset.textContent='🔄 Recalibrar';
+    btnReset.addEventListener('click', ()=>{ sigCalibState.points=[]; sigCalibState.calibrated=false; renderSignatureCalibUI(); });
+    btnRow.appendChild(btnReset);
+  }
+  if(sigCalibState.calibrated){
+    const btnAplicar = document.createElement('button');
+    btnAplicar.className='btn btn-green btn-sm';
+    btnAplicar.textContent='✔ Aplicar assinaturas na tabela';
+    btnAplicar.addEventListener('click', aplicarAssinaturasNaTabela);
+    btnRow.appendChild(btnAplicar);
+  }
+  if(signatureCrops.length>0){
+    const btnRemover = document.createElement('button');
+    btnRemover.className='btn btn-danger btn-sm';
+    btnRemover.textContent='Remover assinaturas da tabela';
+    btnRemover.addEventListener('click', ()=>{
+      signatureCrops = [];
+      renderResultados();
+      showToast('Assinaturas removidas da tabela.');
+    });
+    btnRow.appendChild(btnRemover);
+  }
+  area.appendChild(btnRow);
+}
+
+function computeSignatureCrops(){
+  const n = state.alunos.length;
+  const pts = sigCalibState.points;
+  if(pts.length<3 || n<2) return [];
+  const r1 = normalizeRect(pts[0], pts[1]);
+  const colWidth = r1.x2 - r1.x1;
+  const boxHeight = r1.y2 - r1.y1;
+  const rowSpacing = (pts[2].y - r1.y1) / (n-1);
+  const cropHeight = Math.min(boxHeight, Math.abs(rowSpacing)*0.98) || boxHeight;
+  const crops = [];
+  for(let i=0;i<n;i++){
+    const sx = Math.max(0, Math.round(r1.x1));
+    const sy = Math.max(0, Math.round(r1.y1 + i*rowSpacing));
+    const sw = Math.max(1, Math.round(colWidth));
+    const sh = Math.max(1, Math.round(cropHeight));
+    const c = document.createElement('canvas');
+    c.width = sw; c.height = sh;
+    c.getContext('2d').drawImage(sigCalibState.naturalCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    crops.push(c.toDataURL('image/png'));
+  }
+  return crops;
+}
+
+function aplicarAssinaturasNaTabela(){
+  signatureCrops = computeSignatureCrops();
+  renderResultados();
+  showToast('✔ Assinaturas aplicadas na tabela de resultados.');
+}
+
+const sigDropzone = document.getElementById('sigDropzone');
+const sigFileInput = document.getElementById('sigFileInput');
+sigDropzone.addEventListener('click', ()=> sigFileInput.click());
+sigDropzone.addEventListener('dragover', e=>{ e.preventDefault(); sigDropzone.classList.add('drag'); });
+sigDropzone.addEventListener('dragleave', ()=> sigDropzone.classList.remove('drag'));
+sigDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); sigDropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(f) loadSignatureFile(f);
+});
+sigFileInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(f) loadSignatureFile(f);
+  sigFileInput.value = '';
 });
 
 document.getElementById('btnExportCsv').addEventListener('click', ()=>{
