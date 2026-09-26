@@ -139,10 +139,12 @@
   table.results th,table.results td{border:1px solid var(--gray-200);padding:8px 10px;text-align:left}
   table.results th{background:var(--navy);color:#fff;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
   table.results tr:nth-child(even){background:var(--gray-50)}
+  .assinatura-cell{min-width:110px}
   .nota-cell{font-weight:700}
-  .nota-alta{color:var(--green)}
-  .nota-media{color:#8a6d00}
-  .nota-baixa{color:var(--red)}
+  .nota-alta{color:var(--green);background:var(--green-bg)}
+  .nota-media{color:#8a6d00;background:#fff3cd}
+  .nota-baixa{color:var(--red);background:var(--red-bg)}
+  .nota-cell{border-radius:5px;text-align:center}
 
   table.detalhe-table{font-size:.72rem;table-layout:auto}
   table.detalhe-table th,table.detalhe-table td{padding:4px 5px;text-align:center;white-space:nowrap}
@@ -151,6 +153,9 @@
   .legenda{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0;font-size:.82rem}
   .legenda span{display:inline-flex;align-items:center;gap:6px}
   .legenda i{width:14px;height:14px;border-radius:3px;display:inline-block}
+
+  #printOverlaySheet{display:none}
+  #printOverlaySheet img{width:100%;height:auto;display:block}
 
   #fabNovaFoto{
     position:fixed; bottom:22px; right:22px; z-index:500;
@@ -199,34 +204,42 @@
     header.app-header, nav.tabs, .no-print, .card.no-print{display:none !important}
     section.tab{display:none !important}
     section.tab#tab-resultados{display:block !important}
-    body{padding:0; margin:0}
+    body{padding:0; margin:0; font-size:9pt}
     main{padding:0 !important; max-width:100% !important}
-    .card{box-shadow:none !important; padding:6px 4px !important; margin-bottom:10px !important; border-radius:0 !important}
-    .card h2{font-size:.95rem !important; margin-bottom:6px !important}
+    .card{box-shadow:none !important; padding:4px 2px !important; margin-bottom:8px !important; border-radius:0 !important}
+    .card h2{font-size:.92rem !important; margin-bottom:4px !important}
     .card p.hint{display:none !important}
-    .legenda{font-size:.68rem !important; margin:4px 0 8px !important}
+    .legenda{font-size:.65rem !important; margin:3px 0 6px !important}
 
     table.results{width:100% !important}
     table.results th{background:#eee !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     table.results td, table.results th{
-      border:.5pt solid #555 !important; padding:5px 6px !important;
+      border:.5pt solid #555 !important; padding:2px 6px !important; line-height:1.15 !important; font-size:8.5pt !important;
     }
     table.results tr{border-bottom:1pt solid #333 !important}
+    table.results td.nota-cell{-webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; font-weight:700 !important}
+    .assinatura-cell{width:38mm !important}
 
     #detalheWrap{overflow:visible !important; width:100% !important}
     table.detalhe-table{
-      width:100% !important; table-layout:fixed !important; font-size:6.8pt !important;
+      width:100% !important; table-layout:fixed !important; font-size:6.2pt !important;
     }
     table.detalhe-table td, table.detalhe-table th{
-      border:.5pt solid #555 !important; padding:3px 2px !important;
+      border:.5pt solid #555 !important; padding:1.5px 1px !important;
       white-space:normal !important; word-break:break-word; overflow:visible !important;
       -webkit-print-color-adjust:exact; print-color-adjust:exact;
     }
     table.detalhe-table tr{border-bottom:1pt solid #333 !important}
     table.detalhe-table td:first-child, table.detalhe-table th:first-child{
-      width:19mm !important; position:static !important; text-align:left !important; font-size:6.5pt !important;
+      width:30mm !important; position:static !important; text-align:left !important; font-size:6.2pt !important; white-space:normal !important; word-break:break-word !important;
     }
     #cardDetalhe{page-break-before:always}
+
+    body.print-overlay-mode header.app-header,
+    body.print-overlay-mode nav.tabs,
+    body.print-overlay-mode main,
+    body.print-overlay-mode #toastMsg{display:none !important}
+    body.print-overlay-mode #printOverlaySheet{display:block !important}
   }
 </style>
 </head>
@@ -362,25 +375,36 @@
   <!-- ============ TAB 4: RESULTADOS ============ -->
   <section class="tab" id="tab-resultados">
     <div class="card">
-      <h2 id="resultadosTitulo">Resultados</h2>
+      <h2 id="resultadosTitulo">Resultados — Opção 1: lista simples (assinatura em branco, para assinar agora)</h2>
       <p class="hint" id="resultadosSub"></p>
       <div class="toolbar no-print">
         <button class="btn btn-gold" id="btnExportCsv">⬇️ Exportar CSV</button>
-        <button class="btn btn-outline" id="btnImprimir">🖨️ Imprimir relatório</button>
+        <button class="btn btn-outline" id="btnImprimir">🖨️ Imprimir esta lista</button>
         <button class="btn btn-danger" id="btnLimparResultados">Limpar todos os resultados</button>
       </div>
       <table class="results" id="tabelaResultados">
         <thead>
-          <tr><th>Nº</th><th>Aluno</th><th>Acertos</th><th>Nota (0-10)</th><th>%</th><th class="no-print">Ações</th></tr>
+          <tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th class="no-print">Acertos</th><th>Nota (0-10)</th><th class="no-print">%</th><th class="no-print">Ações</th></tr>
         </thead>
         <tbody></tbody>
       </table>
       <div id="msgResultados"></div>
     </div>
 
+    <div class="card no-print" id="cardOverlay">
+      <h2>Opção 2 — Sobrepor as notas na lista já assinada pelos alunos</h2>
+      <p class="hint">Envie a foto (ou PDF) da mesma folha de chamada/assinaturas que os alunos já assinaram no papel (a coluna "Nota" dela está em branco). Marque 2 pontos de referência uma única vez e o app calcula sozinho onde encaixar a nota de cada aluno, na ordem cadastrada na aba "Lista de Alunos" — sem precisar recolher assinatura nova.</p>
+      <div class="dropzone" id="overlayDropzone">
+        <strong>Clique para escolher</strong> a foto ou PDF da lista já assinada<br>
+        <span style="font-size:.8rem">Não precisa de chave de API — esta etapa não usa IA</span>
+        <input type="file" id="overlayFileInput" accept="image/*,application/pdf" style="display:none">
+      </div>
+      <div id="overlayCalibArea"></div>
+    </div>
+
     <div class="card" id="cardDetalhe">
       <h2>Detalhamento — questões que cada aluno acertou e errou</h2>
-      <p class="hint">Pensada para imprimir no verso da folha de resultados (frente = nomes e notas, verso = este detalhamento). No navegador, escolha impressão <strong>frente e verso</strong> ou imprima as duas folhas separadamente e junte-as.</p>
+      <p class="hint">Pensada para imprimir no verso da folha de resultados (frente = nomes e notas, verso = este detalhamento). Não tem coluna de assinatura — só nome, acertos e erros. No navegador, escolha impressão <strong>frente e verso</strong> ou imprima as duas folhas separadamente e junte-as.</p>
       <div class="legenda">
         <span><i style="background:var(--green-bg);border:1px solid var(--green)"></i> Acertou (mostra a letra marcada)</span>
         <span><i style="background:var(--red-bg);border:1px solid var(--red)"></i> Errou (mostra a letra marcada)</span>
@@ -394,6 +418,8 @@
       </div>
     </div>
   </section>
+
+  <section id="printOverlaySheet"><img id="printOverlayImg" alt="Folha com notas sobrepostas"></section>
 
 </main>
 
@@ -1078,12 +1104,13 @@ function renderResultados(){
       tr.innerHTML = `
         <td>${idx+1}</td>
         <td>${nome}</td>
-        <td>${r.acertos}/${r.total}</td>
+        <td class="assinatura-cell"></td>
+        <td class="no-print">${r.acertos}/${r.total}</td>
         <td class="nota-cell ${notaClasse(r.nota)}">${r.nota.toFixed(2)}</td>
-        <td>${pct}%</td>
-        <td class="no-print"></td>
+        <td class="no-print">${pct}%</td>
+        <td class="no-print acoes-cell"></td>
       `;
-      const tdAcoes = tr.querySelector('.no-print');
+      const tdAcoes = tr.querySelector('.acoes-cell');
       const del = document.createElement('button');
       del.className='btn btn-outline btn-sm';
       del.textContent='Remover';
@@ -1097,8 +1124,9 @@ function renderResultados(){
       tr.innerHTML = `
         <td>${idx+1}</td>
         <td>${nome}</td>
+        <td class="assinatura-cell"></td>
         <td colspan="3" style="color:var(--gray-400)">ainda não corrigido</td>
-        <td class="no-print"></td>
+        <td class="no-print acoes-cell"></td>
       `;
     }
     tbody.appendChild(tr);
@@ -1145,7 +1173,248 @@ function renderDetalhe(){
   });
 }
 
+/* ============================================================
+   OPÇÃO 2 — SOBREPOR NOTAS NA LISTA JÁ ASSINADA
+   (não usa IA: apenas desenho em canvas sobre a imagem/PDF enviado)
+============================================================ */
+let overlayState = {
+  naturalCanvas: null,
+  naturalWidth: 0,
+  naturalHeight: 0,
+  points: [],       // até 2 pontos, em coordenadas NATURAIS da imagem
+  calibrated: false,
+  offsetX: 0,
+  offsetY: 0
+};
+
+function imageFileToCanvas(file){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve(c);
+    };
+    img.onerror = ()=> reject(new Error('Não foi possível carregar a imagem.'));
+    img.src = url;
+  });
+}
+
+function ensurePdfJs(){
+  return new Promise((resolve, reject)=>{
+    if(window.pdfjsLib){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = ()=>{
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    s.onerror = ()=> reject(new Error('Não foi possível carregar o leitor de PDF (verifique a conexão com a internet).'));
+    document.head.appendChild(s);
+  });
+}
+
+async function pdfFileToCanvas(file){
+  await ensurePdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 2.5 });
+  const c = document.createElement('canvas');
+  c.width = viewport.width; c.height = viewport.height;
+  await page.render({ canvasContext: c.getContext('2d'), viewport }).promise;
+  return c;
+}
+
+async function loadOverlayFile(file){
+  const area = document.getElementById('overlayCalibArea');
+  area.innerHTML = '<div class="msg info">Carregando arquivo…</div>';
+  try{
+    const isPdf = file.type === 'application/pdf';
+    const canvas = isPdf ? await pdfFileToCanvas(file) : await imageFileToCanvas(file);
+    overlayState = { naturalCanvas: canvas, naturalWidth: canvas.width, naturalHeight: canvas.height, points: [], calibrated:false, offsetX:0, offsetY:0 };
+    renderOverlayUI();
+  }catch(err){
+    console.error(err);
+    area.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function computeGradePositions(){
+  const n = state.alunos.length;
+  if(overlayState.points.length < 2 || n < 2) return [];
+  const p1 = overlayState.points[0], p2 = overlayState.points[1];
+  const positions = [];
+  for(let i=0;i<n;i++){
+    const t = i/(n-1);
+    positions.push({
+      x: p1.x + (p2.x - p1.x)*t + overlayState.offsetX,
+      y: p1.y + (p2.y - p1.y)*t + overlayState.offsetY
+    });
+  }
+  return positions;
+}
+
+function drawGradeText(ctx, text, x, y, color, fontSize){
+  ctx.font = 'bold ' + Math.max(fontSize,10) + 'px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(fontSize/4, 2);
+  ctx.strokeStyle = '#fff';
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+function corDaNota(nota){
+  if(nota>=7) return '#1e8e3e';
+  if(nota>=5) return '#8a6d00';
+  return '#c62828';
+}
+
+function drawOverlayPreview(canvas, scale){
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(overlayState.naturalCanvas, 0, 0, canvas.width, canvas.height);
+  overlayState.points.forEach((p, idx)=>{
+    ctx.beginPath();
+    ctx.arc(p.x*scale, p.y*scale, 6, 0, Math.PI*2);
+    ctx.fillStyle = idx===0 ? '#1a365d' : '#c9a227';
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  });
+  if(overlayState.calibrated){
+    const positions = computeGradePositions();
+    positions.forEach((pos, idx)=>{
+      const r = state.resultados.find(res=>res.alunoIndex===idx);
+      const texto = r ? r.nota.toFixed(1) : '—';
+      const cor = r ? corDaNota(r.nota) : '#999';
+      drawGradeText(ctx, texto, pos.x*scale, pos.y*scale, cor, Math.max(16*scale, 10));
+    });
+  }
+}
+
+function buildFinalOverlayCanvas(){
+  const c = document.createElement('canvas');
+  c.width = overlayState.naturalWidth;
+  c.height = overlayState.naturalHeight;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(overlayState.naturalCanvas, 0, 0);
+  const baseFont = Math.max(overlayState.naturalWidth/45, 22);
+  computeGradePositions().forEach((pos, idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex===idx);
+    const texto = r ? r.nota.toFixed(1) : '—';
+    const cor = r ? corDaNota(r.nota) : '#999';
+    drawGradeText(ctx, texto, pos.x, pos.y, cor, baseFont);
+  });
+  return c;
+}
+
+function renderOverlayUI(){
+  const area = document.getElementById('overlayCalibArea');
+  area.innerHTML = '';
+  if(!overlayState.naturalCanvas) return;
+
+  const info = document.createElement('div');
+  if(overlayState.points.length === 0){
+    info.className = 'msg info';
+    info.textContent = '1) Clique na imagem exatamente onde deve ficar a nota do 1º aluno da lista (' + (state.alunos[0] || '1º aluno') + '), dentro da coluna "Nota".';
+  }else if(overlayState.points.length === 1){
+    info.className = 'msg info';
+    info.textContent = '2) Agora clique onde deve ficar a nota do último aluno da lista (' + (state.alunos[state.alunos.length-1] || 'último aluno') + '), na mesma coluna.';
+  }else{
+    info.className = 'msg ok';
+    info.textContent = 'Calibrado! Confira a pré-visualização abaixo — se algo estiver um pouco desalinhado, use os ajustes finos.';
+  }
+  area.appendChild(info);
+
+  const previewWrap = document.createElement('div');
+  previewWrap.style.cssText = 'overflow:auto;border:1px solid var(--gray-200);border-radius:8px;margin-top:10px';
+  const canvas = document.createElement('canvas');
+  const maxW = Math.min(780, overlayState.naturalWidth);
+  const scale = maxW / overlayState.naturalWidth;
+  canvas.width = maxW;
+  canvas.height = Math.round(overlayState.naturalHeight * scale);
+  canvas.style.width = '100%';
+  canvas.style.cursor = overlayState.points.length < 2 ? 'crosshair' : 'default';
+  previewWrap.appendChild(canvas);
+  area.appendChild(previewWrap);
+  drawOverlayPreview(canvas, scale);
+
+  canvas.addEventListener('click', (e)=>{
+    if(overlayState.points.length >= 2) return;
+    if(state.alunos.length < 2){ alert('Cadastre pelo menos 2 alunos na aba "Lista de Alunos" antes de calibrar.'); return; }
+    const rect = canvas.getBoundingClientRect();
+    const dispX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const dispY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    overlayState.points.push({ x: dispX/scale, y: dispY/scale });
+    if(overlayState.points.length === 2) overlayState.calibrated = true;
+    renderOverlayUI();
+  });
+
+  if(overlayState.points.length > 0){
+    const btnRow = document.createElement('div');
+    btnRow.className = 'toolbar no-print';
+    btnRow.style.marginTop = '10px';
+    const btnReset = document.createElement('button');
+    btnReset.className = 'btn btn-outline btn-sm';
+    btnReset.textContent = '🔄 Recalibrar';
+    btnReset.addEventListener('click', ()=>{ overlayState.points=[]; overlayState.calibrated=false; renderOverlayUI(); });
+    btnRow.appendChild(btnReset);
+    area.appendChild(btnRow);
+  }
+
+  if(overlayState.calibrated){
+    const fine = document.createElement('div');
+    fine.className = 'row';
+    fine.style.marginTop = '12px';
+    fine.innerHTML = `
+      <div><label>Ajuste fino horizontal (px)</label><input type="number" id="fineX" value="${overlayState.offsetX}" style="width:100px"></div>
+      <div><label>Ajuste fino vertical (px)</label><input type="number" id="fineY" value="${overlayState.offsetY}" style="width:100px"></div>
+    `;
+    area.appendChild(fine);
+    document.getElementById('fineX').addEventListener('input', e=>{ overlayState.offsetX = parseInt(e.target.value,10)||0; drawOverlayPreview(canvas, scale); });
+    document.getElementById('fineY').addEventListener('input', e=>{ overlayState.offsetY = parseInt(e.target.value,10)||0; drawOverlayPreview(canvas, scale); });
+
+    const printBtn = document.createElement('button');
+    printBtn.className = 'btn btn-green no-print';
+    printBtn.style.marginTop = '14px';
+    printBtn.textContent = '🖨️ Imprimir esta folha';
+    printBtn.addEventListener('click', imprimirFolhaOverlay);
+    area.appendChild(printBtn);
+  }
+}
+
+function imprimirFolhaOverlay(){
+  if(!overlayState.calibrated){ alert('Calibre os 2 pontos primeiro (clique na nota do 1º e do último aluno).'); return; }
+  const finalCanvas = buildFinalOverlayCanvas();
+  document.getElementById('printOverlayImg').src = finalCanvas.toDataURL('image/png');
+  document.body.classList.add('print-overlay-mode');
+  setTimeout(()=> window.print(), 80);
+}
+window.addEventListener('afterprint', ()=>{ document.body.classList.remove('print-overlay-mode'); });
+
+const overlayDropzone = document.getElementById('overlayDropzone');
+const overlayFileInput = document.getElementById('overlayFileInput');
+overlayDropzone.addEventListener('click', ()=> overlayFileInput.click());
+overlayDropzone.addEventListener('dragover', e=>{ e.preventDefault(); overlayDropzone.classList.add('drag'); });
+overlayDropzone.addEventListener('dragleave', ()=> overlayDropzone.classList.remove('drag'));
+overlayDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); overlayDropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(f) loadOverlayFile(f);
+});
+overlayFileInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(f) loadOverlayFile(f);
+  overlayFileInput.value = '';
+});
+
 document.getElementById('btnExportCsv').addEventListener('click', ()=>{
+
   let csv = 'Numero;Aluno;Acertos;Total;Nota;Percentual\n';
   state.alunos.forEach((nome,idx)=>{
     const r = state.resultados.find(res=>res.alunoIndex===idx);
