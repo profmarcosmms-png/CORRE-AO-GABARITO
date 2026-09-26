@@ -1,6 +1,7 @@
-const CACHE_NAME = 'corretor-gabaritos-v2';
+const CACHE_NAME = 'corretor-gabaritos-v4';
 const APP_SHELL = [
-  './corretor-gabaritos.html',
+  './index.html',
+  './index.html?src=pwa',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'

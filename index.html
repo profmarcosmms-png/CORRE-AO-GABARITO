@@ -227,8 +227,7 @@
     table.results th:nth-child(1), table.results td:nth-child(1){width:8mm !important}
     table.results th:nth-child(2), table.results td:nth-child(2){width:46mm !important}
     .assinatura-cell{width:72mm !important}
-    table.results th:nth-child(4), table.results td:nth-child(4){width:22mm !important}
-    table.results th:nth-child(5), table.results td:nth-child(5){width:22mm !important}
+    table.results th:nth-child(4), table.results td:nth-child(4){width:26mm !important}
     table.results th{background:#eee !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     table.results td, table.results th{
       border:.5pt solid #555 !important; padding:2px 6px !important; line-height:1.15 !important; font-size:8.5pt !important;
@@ -322,6 +321,17 @@
       </div>
     </div>
 
+    <div class="card no-print" id="cardImportarGabarito">
+      <h2>Importar gabarito por foto ou PDF</h2>
+      <p class="hint">Envie uma foto ou PDF do gabarito oficial da prova (a lista de respostas corretas). A IA preenche as alternativas automaticamente — <strong>sempre confira antes de salvar</strong>, para evitar erro de digitação ou de leitura.</p>
+      <div class="dropzone" id="gabFileDropzone">
+        <strong>Clique para escolher</strong> a foto ou PDF do gabarito<br>
+        <span style="font-size:.8rem">Usa a mesma chave de API configurada na aba "Corrigir Provas"</span>
+        <input type="file" id="gabFileInput" accept="image/*,application/pdf" style="display:none">
+      </div>
+      <div id="gabImportMsg"></div>
+    </div>
+
     <div class="card">
       <h2>Marque o gabarito correto</h2>
       <p class="hint">Clique na alternativa correta de cada questão.</p>
@@ -411,7 +421,7 @@
       </div>
       <table class="results" id="tabelaResultados">
         <thead>
-          <tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th>Acertos</th><th>Nota (0-10)</th><th class="no-print">%</th><th class="no-print">Ações</th></tr>
+          <tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th>Acertos</th><th class="no-print">%</th><th class="no-print">Ações</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -585,6 +595,94 @@ document.getElementById('btnLimparGabarito').addEventListener('click', ()=>{
   renderGabaritoGrid();
 });
 
+/* ============================================================
+   IMPORTAR GABARITO POR FOTO OU PDF
+============================================================ */
+async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf){
+  const headers = buildApiHeaders();
+  const n = state.config.numQuestoes;
+  const opts = LETTERS.slice(0, state.config.numAlternativas).join(', ');
+  const prompt = 'Este documento é o GABARITO OFICIAL de uma avaliação escolar — ou seja, a lista das respostas CORRETAS de cada questão (não é a prova de um aluno, é a folha de correção do professor). '+
+    'Pode estar em formato de tabela, lista numerada (ex.: "1-A", "2. C") ou texto corrido. '+
+    'Extraia a alternativa correta de cada questão numerada, considerando que as alternativas possíveis são: '+opts+'. '+
+    'Se o documento tiver mais ou menos questões que '+n+', extraia todas as que conseguir identificar mesmo assim. '+
+    'Se não conseguir determinar a resposta de alguma questão com segurança, retorne null para ela — não invente. '+
+    'Responda ESTRITAMENTE em JSON válido, sem texto antes ou depois, sem blocos de código, no formato exato: '+
+    '{"respostas": {"1": "A", "2": "C", "3": null}}';
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type:'base64', media_type:'application/pdf', data: base64Data } }
+    : { type: 'image', source: { type:'base64', media_type: mediaType, data: base64Data } };
+
+  const body = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 2000,
+    messages: [{ role:'user', content:[ contentBlock, { type:'text', text: prompt } ] }]
+  };
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", { method:'POST', headers, body: JSON.stringify(body) });
+  if(!resp.ok){
+    const t = await resp.text().catch(()=> '');
+    throw new Error('API retornou erro ' + resp.status + (t ? (' - '+t.slice(0,150)) : ''));
+  }
+  const data = await resp.json();
+  const textBlock = (data.content||[]).find(c=>c.type==='text');
+  if(!textBlock) throw new Error('Resposta da IA sem texto');
+  let raw = textBlock.text.trim();
+  raw = raw.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  const parsed = JSON.parse(raw);
+  return parsed.respostas || {};
+}
+
+async function loadGabaritoFile(file){
+  if(state.config.numQuestoes < 1){ return; }
+  showMsg('gabImportMsg', 'Lendo gabarito com IA, aguarde…', 'info');
+  try{
+    const base64 = await fileToBase64(file);
+    const isPdf = file.type === 'application/pdf';
+    const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+    const respostas = await callGabaritoExtractionAPI(base64, mediaType, isPdf);
+    const opts = LETTERS.slice(0, state.config.numAlternativas);
+    const n = state.config.numQuestoes;
+    let preenchidas = 0;
+    let foraDoIntervalo = 0;
+    for(let i=1;i<=n;i++){
+      const v = respostas[String(i)];
+      if(v && opts.includes(String(v).toUpperCase())){
+        state.gabarito[i-1] = String(v).toUpperCase();
+        preenchidas++;
+      }
+    }
+    const maxEncontrado = Object.keys(respostas).map(k=>parseInt(k,10)).filter(k=>!isNaN(k)).reduce((a,b)=>Math.max(a,b), 0);
+    if(maxEncontrado > n) foraDoIntervalo = maxEncontrado - n;
+    renderGabaritoGrid();
+    let msg = `✔ ${preenchidas} de ${n} questões preenchidas automaticamente. Revise a grade abaixo antes de salvar.`;
+    if(foraDoIntervalo > 0){
+      msg += ` O documento parece ter ${maxEncontrado} questões — se for o caso, ajuste "Nº de questões" no topo e importe de novo.`;
+    }
+    showMsg('gabImportMsg', msg, preenchidas < n ? 'error' : 'ok');
+  }catch(err){
+    console.error(err);
+    showMsg('gabImportMsg', 'Não foi possível ler o gabarito automaticamente (' + err.message + '). Marque as alternativas manualmente abaixo.', 'error');
+  }
+}
+
+const gabFileDropzone = document.getElementById('gabFileDropzone');
+const gabFileInput = document.getElementById('gabFileInput');
+gabFileDropzone.addEventListener('click', ()=> gabFileInput.click());
+gabFileDropzone.addEventListener('dragover', e=>{ e.preventDefault(); gabFileDropzone.classList.add('drag'); });
+gabFileDropzone.addEventListener('dragleave', ()=> gabFileDropzone.classList.remove('drag'));
+gabFileDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); gabFileDropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(f) loadGabaritoFile(f);
+});
+gabFileInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(f) loadGabaritoFile(f);
+  gabFileInput.value = '';
+});
+
 function showMsg(elId, text, type){
   const el = document.getElementById(elId);
   el.innerHTML = `<div class="msg ${type}">${text}</div>`;
@@ -720,7 +818,7 @@ function renderPending(){
     if(item.status==='ok' && item.collapsed){
       const nomeAluno = item.alunoIndex!==null ? state.alunos[item.alunoIndex] : '(sem aluno)';
       const resultado = state.resultados.find(r=>r.alunoIndex===item.alunoIndex);
-      const notaTxt = resultado ? ('Nota ' + resultado.nota.toFixed(2) + ' · ' + resultado.acertos + '/' + resultado.total) : '';
+      const notaTxt = resultado ? (resultado.acertos + '/' + resultado.total + ' acertos') : '';
       const compact = document.createElement('div');
       compact.className = 'card';
       compact.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap';
@@ -1232,8 +1330,7 @@ function renderResultados(){
         <td>${idx+1}</td>
         <td>${nome}</td>
         <td class="assinatura-cell">${assinaturaHtml}</td>
-        <td>(${r.acertos}/${r.total})</td>
-        <td class="nota-cell ${notaClasse(r.nota)}">${r.nota.toFixed(2)}</td>
+        <td class="nota-cell ${notaClasse(r.nota)}">${r.acertos}/${r.total}</td>
         <td class="no-print">${pct}%</td>
         <td class="no-print acoes-cell"></td>
       `;
@@ -1252,7 +1349,7 @@ function renderResultados(){
         <td>${idx+1}</td>
         <td>${nome}</td>
         <td class="assinatura-cell">${assinaturaHtml}</td>
-        <td colspan="3" style="color:var(--gray-400)">ainda não corrigido</td>
+        <td colspan="2" style="color:var(--gray-400)">ainda não corrigido</td>
         <td class="no-print acoes-cell"></td>
       `;
     }
@@ -1396,9 +1493,10 @@ function drawGradeText(ctx, text, x, y, color, fontSize){
   ctx.fillText(text, x, y);
 }
 
-function corDaNota(nota){
-  if(nota>=7) return '#1e8e3e';
-  if(nota>=5) return '#8a6d00';
+function corDaNota(acertos, total){
+  const pct = total ? (acertos/total)*100 : 0;
+  if(pct>=70) return '#1e8e3e';
+  if(pct>=50) return '#8a6d00';
   return '#c62828';
 }
 
@@ -1417,8 +1515,8 @@ function drawOverlayPreview(canvas, scale){
     const positions = computeGradePositions();
     positions.forEach((pos, idx)=>{
       const r = state.resultados.find(res=>res.alunoIndex===idx);
-      const texto = r ? r.nota.toFixed(1) : '—';
-      const cor = r ? corDaNota(r.nota) : '#999';
+      const texto = r ? (r.acertos + '/' + r.total) : '—';
+      const cor = r ? corDaNota(r.acertos, r.total) : '#999';
       drawGradeText(ctx, texto, pos.x*scale, pos.y*scale, cor, Math.max(16*scale, 10));
     });
   }
@@ -1430,11 +1528,11 @@ function buildFinalOverlayCanvas(){
   c.height = overlayState.naturalHeight;
   const ctx = c.getContext('2d');
   ctx.drawImage(overlayState.naturalCanvas, 0, 0);
-  const baseFont = Math.max(overlayState.naturalWidth/45, 22);
+  const baseFont = Math.max(overlayState.naturalWidth/55, 18);
   computeGradePositions().forEach((pos, idx)=>{
     const r = state.resultados.find(res=>res.alunoIndex===idx);
-    const texto = r ? r.nota.toFixed(1) : '—';
-    const cor = r ? corDaNota(r.nota) : '#999';
+    const texto = r ? (r.acertos + '/' + r.total) : '—';
+    const cor = r ? corDaNota(r.acertos, r.total) : '#999';
     drawGradeText(ctx, texto, pos.x, pos.y, cor, baseFont);
   });
   return c;
@@ -1714,14 +1812,14 @@ sigFileInput.addEventListener('change', e=>{
 
 document.getElementById('btnExportCsv').addEventListener('click', ()=>{
 
-  let csv = 'Numero;Aluno;Acertos;Total;Nota;Percentual\n';
+  let csv = 'Numero;Aluno;Acertos;Total;Percentual\n';
   state.alunos.forEach((nome,idx)=>{
     const r = state.resultados.find(res=>res.alunoIndex===idx);
     if(r){
       const pct = Math.round((r.acertos/r.total)*100);
-      csv += `${idx+1};${nome};${r.acertos};${r.total};${r.nota.toFixed(2)};${pct}%\n`;
+      csv += `${idx+1};${nome};${r.acertos};${r.total};${pct}%\n`;
     }else{
-      csv += `${idx+1};${nome};;;;\n`;
+      csv += `${idx+1};${nome};;;\n`;
     }
   });
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
