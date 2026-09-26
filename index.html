@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CORGAB - Corretor de Gabaritos - Prof. Marcos Monteiro</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a365d">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CORGAB">
+<style>
+  :root{
+    --navy:#1a365d;
+    --navy-dark:#0f2440;
+    --gold:#c9a227;
+    --gold-light:#e8c766;
+    --green:#1e8e3e;
+    --green-bg:#e6f4ea;
+    --red:#c62828;
+    --red-bg:#fdecea;
+    --gray-50:#f7f8fa;
+    --gray-100:#eef1f5;
+    --gray-200:#dfe3e8;
+    --gray-400:#9aa5b1;
+    --gray-600:#5c6773;
+    --gray-800:#2b333d;
+    --radius:10px;
+    --shadow:0 1px 3px rgba(15,36,64,.08), 0 1px 2px rgba(15,36,64,.06);
+    --shadow-lg:0 8px 24px rgba(15,36,64,.14);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    background:var(--gray-50); color:var(--gray-800); line-height:1.5;
+    padding-bottom:60px;
+  }
+  header.app-header{
+    background:linear-gradient(135deg,var(--navy),var(--navy-dark));
+    color:#fff; padding:22px 20px 18px; box-shadow:var(--shadow-lg);
+  }
+  header.app-header .inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between}
+  header.app-header h1{margin:0;font-size:1.35rem;font-weight:700;letter-spacing:.2px}
+  header.app-header .sub{font-size:.82rem;color:var(--gold-light);margin-top:2px}
+  header.app-header .badge{
+    background:rgba(255,255,255,.12); border:1px solid rgba(201,162,39,.5);
+    padding:6px 12px;border-radius:20px;font-size:.78rem;color:var(--gold-light);
+  }
+
+  nav.tabs{
+    max-width:1100px;margin:0 auto;display:flex;gap:6px;padding:14px 20px 0;flex-wrap:wrap;
+  }
+  nav.tabs button{
+    border:none;background:#fff;color:var(--gray-600);padding:11px 18px;border-radius:10px 10px 0 0;
+    font-size:.92rem;font-weight:600;cursor:pointer;box-shadow:var(--shadow);
+    border-bottom:3px solid transparent;
+  }
+  nav.tabs button.active{color:var(--navy);border-bottom:3px solid var(--gold)}
+  nav.tabs button .n{
+    display:inline-block;background:var(--gray-100);color:var(--gray-600);border-radius:50%;
+    width:20px;height:20px;line-height:20px;text-align:center;font-size:.72rem;margin-right:6px;
+  }
+  nav.tabs button.active .n{background:var(--gold);color:#fff}
+
+  main{max-width:1100px;margin:0 auto;padding:20px}
+  section.tab{display:none}
+  section.tab.active{display:block}
+
+  .card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:18px}
+  .card h2{margin:0 0 4px;font-size:1.08rem;color:var(--navy)}
+  .card p.hint{margin:0 0 16px;color:var(--gray-600);font-size:.87rem}
+
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+  label{font-size:.82rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:5px}
+  select,input[type=text],input[type=password],input[type=number],textarea{
+    border:1px solid var(--gray-200);border-radius:8px;padding:9px 11px;font-size:.92rem;
+    font-family:inherit;background:#fff;color:var(--gray-800);
+  }
+  textarea{width:100%;resize:vertical;min-height:130px}
+  input[type=text],input[type=password],input[type=number]{width:100%}
+
+  button.btn{
+    border:none;border-radius:8px;padding:10px 18px;font-size:.88rem;font-weight:600;
+    cursor:pointer;transition:filter .15s; display:inline-flex;align-items:center;gap:6px;
+  }
+  button.btn:hover{filter:brightness(1.06)}
+  button.btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-primary{background:var(--navy);color:#fff}
+  .btn-gold{background:var(--gold);color:#fff}
+  .btn-outline{background:#fff;color:var(--navy);border:1px solid var(--gray-200) !important}
+  .btn-danger{background:var(--red-bg);color:var(--red)}
+  .btn-green{background:var(--green);color:#fff}
+  .btn-sm{padding:6px 12px;font-size:.78rem}
+
+  /* ---- gabarito grid ---- */
+  .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:12px}
+  .qrow{
+    display:flex;align-items:center;gap:8px;background:var(--gray-50);border:1px solid var(--gray-200);
+    border-radius:8px;padding:7px 9px;
+  }
+  .qrow .qnum{font-weight:700;color:var(--gray-600);font-size:.82rem;width:26px}
+  .qrow .opts{display:flex;gap:5px;flex:1}
+  .opt-btn{
+    flex:1;text-align:center;padding:6px 0;border-radius:6px;border:1px solid var(--gray-200);
+    background:#fff;font-weight:700;font-size:.8rem;cursor:pointer;color:var(--gray-600);
+  }
+  .opt-btn.selected{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .opt-btn.correct-mark{background:var(--green);color:#fff;border-color:var(--green)}
+  .opt-btn.wrong-mark{background:var(--red);color:#fff;border-color:var(--red)}
+  .opt-btn.blank-marker{background:var(--gray-200);color:var(--gray-600)}
+
+  /* roster */
+  ol.roster{margin:12px 0 0;padding-left:26px}
+  ol.roster li{padding:4px 0;font-size:.92rem;border-bottom:1px dashed var(--gray-200)}
+  ol.roster li:last-child{border-bottom:none}
+
+  /* upload area */
+  .dropzone{
+    border:2px dashed var(--gray-200);border-radius:var(--radius);padding:28px;text-align:center;
+    color:var(--gray-600);cursor:pointer;background:var(--gray-50);
+  }
+  .dropzone.drag{border-color:var(--gold);background:#fffaf0}
+  .dropzone strong{color:var(--navy)}
+
+  .pending-card{
+    display:grid;grid-template-columns:220px 1fr;gap:16px;border:1px solid var(--gray-200);
+    border-radius:var(--radius);padding:16px;margin-top:14px;background:var(--gray-50);
+  }
+  .pending-card img{width:100%;border-radius:8px;border:1px solid var(--gray-200);object-fit:cover}
+  .pending-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .status-tag{font-size:.74rem;font-weight:700;padding:3px 9px;border-radius:12px}
+  .status-pendente{background:var(--gray-200);color:var(--gray-600)}
+  .status-lendo{background:#fff3cd;color:#8a6d00}
+  .status-revisar{background:#fdecea;color:var(--red)}
+  .status-ok{background:var(--green-bg);color:var(--green)}
+  .name-match-list{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+  .match-chip{
+    font-size:.78rem;padding:5px 10px;border-radius:14px;border:1px solid var(--gray-200);
+    background:#fff;cursor:pointer;color:var(--gray-800);
+  }
+  .match-chip.chosen{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+  table.results{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9rem}
+  table.results th,table.results td{border:1px solid var(--gray-200);padding:8px 10px;text-align:left}
+  table.results th{background:var(--navy);color:#fff;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
+  table.results tr:nth-child(even){background:var(--gray-50)}
+  .assinatura-cell{min-width:220px}
+  .assinatura-cell img{max-width:100%;max-height:40px;display:block;margin:0 auto}
+  .nota-cell{font-weight:700}
+  .nota-alta{color:var(--green);background:var(--green-bg)}
+  .nota-media{color:#8a6d00;background:#fff3cd}
+  .nota-baixa{color:var(--red);background:var(--red-bg)}
+  .nota-cell{border-radius:5px;text-align:center}
+
+  table.detalhe-table{font-size:.72rem;table-layout:auto}
+  table.detalhe-table th,table.detalhe-table td{padding:4px 5px;text-align:center;white-space:nowrap}
+  table.detalhe-table td:first-child,table.detalhe-table th:first-child{text-align:left;position:sticky;left:0;background:#fff;min-width:150px}
+  table.detalhe-table thead tr:first-child th{background:var(--navy);color:#fff}
+  .legenda{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0;font-size:.82rem}
+  .legenda span{display:inline-flex;align-items:center;gap:6px}
+  .legenda i{width:14px;height:14px;border-radius:3px;display:inline-block}
+
+  #printOverlaySheet{display:none}
+  #printOverlaySheet img{width:100%;height:auto;display:block}
+
+  #fabNovaFoto{
+    position:fixed; bottom:22px; right:22px; z-index:500;
+    width:60px; height:60px; border-radius:50%; border:none;
+    background:var(--gold); color:#fff; font-size:1.6rem;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow-lg); cursor:pointer;
+  }
+  #toastMsg{
+    position:fixed; top:14px; left:50%; transform:translateX(-50%);
+    background:var(--green); color:#fff; padding:11px 20px; border-radius:8px;
+    box-shadow:var(--shadow-lg); z-index:9999; font-size:.88rem; font-weight:600;
+    max-width:90%; text-align:center; display:none;
+  }
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .msg{font-size:.85rem;padding:10px 12px;border-radius:8px;margin-top:10px}
+  .msg.error{background:var(--red-bg);color:var(--red)}
+  .msg.ok{background:var(--green-bg);color:var(--green)}
+  .msg.info{background:#eef2fb;color:var(--navy)}
+
+  .meta-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+  .print-header{display:none}
+
+  @media (max-width:640px){
+    header.app-header h1{font-size:1.1rem}
+    nav.tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+    nav.tabs button{flex:0 0 auto;padding:10px 14px;font-size:.85rem}
+    main{padding:12px}
+    .card{padding:14px}
+    .pending-card{grid-template-columns:1fr}
+    .pending-card img{max-height:260px}
+    .qgrid{grid-template-columns:1fr}
+    .meta-row{grid-template-columns:1fr 1fr}
+    table.results{font-size:.8rem}
+    table.results th,table.results td{padding:6px 6px}
+    .toolbar{gap:6px}
+    .toolbar .btn{flex:1 1 auto;justify-content:center}
+    .name-match-list{gap:5px}
+    .match-chip{font-size:.72rem;padding:4px 8px}
+    #tabelaResultados{display:block;overflow-x:auto;white-space:nowrap}
+    #tabelaResultados thead,#tabelaResultados tbody{display:table;width:100%}
+  }
+
+  @media print{
+    @page{ size: A4 portrait; margin: 6mm; }
+    header.app-header, nav.tabs, .no-print, .card.no-print{display:none !important}
+    section.tab{display:none !important}
+    section.tab#tab-resultados{display:block !important}
+    body{padding:0; margin:0; font-size:9pt}
+    main{padding:0 !important; max-width:100% !important}
+    .card{box-shadow:none !important; padding:4px 2px !important; margin-bottom:8px !important; border-radius:0 !important}
+    .card h2{font-size:.92rem !important; margin-bottom:4px !important}
+    .card p.hint{display:none !important}
+    .print-header{display:block !important; margin-bottom:6px; padding-bottom:5px; border-bottom:1.2pt solid #333}
+    .print-header .escola{font-size:11pt; font-weight:700; color:#000}
+    .print-header .linha2{font-size:8.5pt; color:#222; margin-top:2px}
+    .legenda{font-size:.65rem !important; margin:3px 0 6px !important}
+
+    table.results{width:100% !important; table-layout:fixed !important}
+    table.results th:nth-child(1), table.results td:nth-child(1){width:8mm !important}
+    table.results th:nth-child(2), table.results td:nth-child(2){width:46mm !important}
+    .assinatura-cell{width:72mm !important}
+    table.results th:nth-child(4), table.results td:nth-child(4){width:22mm !important}
+    table.results th:nth-child(5), table.results td:nth-child(5){width:22mm !important}
+    table.results th{background:#eee !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    table.results td, table.results th{
+      border:.5pt solid #555 !important; padding:2px 6px !important; line-height:1.15 !important; font-size:8.5pt !important;
+    }
+    table.results tr{border-bottom:1pt solid #333 !important}
+    table.results td.nota-cell{-webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; font-weight:700 !important}
+    .assinatura-cell img{max-height:15mm !important;width:auto !important;max-width:100% !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+    #detalheWrap{overflow:visible !important; width:100% !important}
+    table.detalhe-table{
+      width:100% !important; table-layout:fixed !important; font-size:6.2pt !important;
+    }
+    table.detalhe-table td, table.detalhe-table th{
+      border:.5pt solid #555 !important; padding:1.5px 1px !important;
+      white-space:normal !important; word-break:break-word; overflow:visible !important;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    }
+    table.detalhe-table tr{border-bottom:1pt solid #333 !important}
+    table.detalhe-table td:first-child, table.detalhe-table th:first-child{
+      width:30mm !important; position:static !important; text-align:left !important; font-size:6.2pt !important; white-space:normal !important; word-break:break-word !important;
+    }
+    #cardDetalhe{page-break-before:always}
+
+    body.print-overlay-mode header.app-header,
+    body.print-overlay-mode nav.tabs,
+    body.print-overlay-mode main,
+    body.print-overlay-mode #toastMsg{display:none !important}
+    body.print-overlay-mode #printOverlaySheet{display:block !important}
+  }
+</style>
+</head>
+<body>
+<div id="toastMsg"></div>
+
+<header class="app-header">
+  <div class="inner">
+    <div>
+      <h1>📋 CORGAB</h1>
+      <div class="sub">Corretor de Gabaritos · Correção de cartões-resposta por foto com IA</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="badge">Gabarito → Turma → Correção → Resultados</div>
+      <button id="btnInstalarApp" class="btn btn-gold btn-sm" style="display:none">📲 Instalar app</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="tab-gabarito"><span class="n">1</span>Gabarito Correto</button>
+  <button class="tab-btn" data-tab="tab-turma"><span class="n">2</span>Lista de Alunos</button>
+  <button class="tab-btn" data-tab="tab-corrigir"><span class="n">3</span>Corrigir Provas</button>
+  <button class="tab-btn" data-tab="tab-resultados"><span class="n">4</span>Resultados</button>
+</nav>
+
+<main>
+
+  <!-- ============ TAB 1: GABARITO ============ -->
+  <section class="tab active" id="tab-gabarito">
+    <div class="card no-print">
+      <h2>Configuração da avaliação</h2>
+      <p class="hint">Defina o número de questões e de alternativas por questão (conforme o cartão-resposta usado na prova).</p>
+      <div class="row">
+        <div>
+          <label>Nº de questões</label>
+          <select id="cfgNumQuestoes">
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="20" selected>20</option>
+            <option value="25">25</option>
+            <option value="30">30</option>
+          </select>
+        </div>
+        <div>
+          <label>Alternativas por questão</label>
+          <select id="cfgNumAlternativas">
+            <option value="4" selected>A - D</option>
+            <option value="5">A - E</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn btn-outline" id="btnAplicarConfig">Aplicar</button>
+        </div>
+      </div>
+      <div class="meta-row" style="margin-top:16px">
+        <div><label>Escola</label><input type="text" id="metaEscola" placeholder="Nome da escola"></div>
+        <div><label>Professor(a)</label><input type="text" id="metaProfessor" placeholder="Ex.: Prof. Marcos Monteiro dos Santos"></div>
+        <div><label>Disciplina</label><input type="text" id="metaDisciplina" placeholder="Ex.: Matemática"></div>
+        <div><label>Turma</label><input type="text" id="metaTurma" placeholder="Ex.: 9º D"></div>
+        <div><label>Bimestre / Avaliação</label><input type="text" id="metaBimestre" placeholder="Ex.: 3º Bimestre"></div>
+        <div><label>Data</label><input type="text" id="metaData" placeholder="Ex.: 22/09/2026"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Marque o gabarito correto</h2>
+      <p class="hint">Clique na alternativa correta de cada questão.</p>
+      <div class="qgrid" id="gabaritoGrid"></div>
+      <div class="toolbar no-print" style="margin-top:16px">
+        <button class="btn btn-primary" id="btnSalvarGabarito">💾 Salvar gabarito</button>
+        <button class="btn btn-outline" id="btnLimparGabarito">Limpar marcações</button>
+      </div>
+      <div id="msgGabarito"></div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 2: TURMA ============ -->
+  <section class="tab" id="tab-turma">
+    <div class="card no-print">
+      <h2>Importar lista por foto ou PDF</h2>
+      <p class="hint">Envie uma foto da lista de chamada/assinaturas (como a folha que você tira uma vez por turma) ou um PDF com os nomes. A IA extrai os nomes automaticamente, na ordem em que aparecem — <strong>sempre revise antes de salvar</strong>, especialmente se a lista tiver assinaturas cursivas.</p>
+      <div class="dropzone" id="rosterDropzone">
+        <strong>Clique para escolher</strong> foto(s) ou PDF da lista da turma<br>
+        <span style="font-size:.8rem">Usa a mesma chave de API configurada na aba "Corrigir Provas"</span>
+        <input type="file" id="rosterFileInput" accept="image/*,application/pdf" multiple style="display:none">
+      </div>
+    </div>
+    <div class="card">
+      <h2>Lista de alunos da turma</h2>
+      <p class="hint">Nomes extraídos aparecem aqui para revisão — ou cole/edite manualmente, um nome por linha, na ordem da chamada.</p>
+      <textarea id="rosterInput" placeholder="ANA JÚLIA RODRIGUES FELIX&#10;ANA VITÓRIA ALVES LOREDO DA SILVA&#10;BÁRBARA SOPHIA MELO SOUZA&#10;..."></textarea>
+      <div class="toolbar no-print" style="margin-top:12px">
+        <button class="btn btn-primary" id="btnSalvarRoster">💾 Salvar lista</button>
+        <button class="btn btn-outline" id="btnLimparRoster">Limpar</button>
+      </div>
+      <div id="msgRoster"></div>
+    </div>
+    <div class="card">
+      <h2>Turma cadastrada (<span id="rosterCount">0</span> alunos)</h2>
+      <ol class="roster" id="rosterList"></ol>
+    </div>
+  </section>
+
+  <!-- ============ TAB 3: CORRIGIR ============ -->
+  <section class="tab" id="tab-corrigir">
+    <div class="card no-print">
+      <h2>Chave de API da Anthropic (opcional)</h2>
+      <p class="hint">Necessária apenas se esta página for usada fora do ambiente do Claude (ex.: hospedada no GitHub Pages). A chave fica salva somente neste navegador. Obtenha em <strong>console.anthropic.com</strong>.</p>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+    </div>
+
+    <div class="card" id="cardEnviarFotos">
+      <h2>Opção A — Ler foto do cartão-resposta com IA</h2>
+      <p class="hint">Envie uma ou mais fotos de cartões-resposta preenchidos (como o modelo do 3º bimestre). A IA tentará ler o nome do aluno e as respostas marcadas — <strong>sempre revise antes de confirmar</strong>.</p>
+      <div class="dropzone" id="dropzone">
+        <strong>Clique para escolher</strong> ou arraste as fotos aqui<br>
+        <span style="font-size:.8rem">JPG, PNG — pode selecionar várias de uma vez</span>
+        <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+      </div>
+      <div class="row" style="margin-top:10px;gap:8px">
+        <button class="btn btn-gold btn-sm" id="btnCamera">📷 Tirar foto agora</button>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+      </div>
+      <div class="toolbar no-print" id="btnProcessarTudoWrap" style="margin-top:14px;display:none">
+        <button class="btn btn-primary" id="btnProcessarTudo">⚡ Analisar e confirmar tudo</button>
+        <span style="font-size:.8rem;color:var(--gray-600);align-self:center">Lê e confirma automaticamente as fotos em que reconhecer o aluno com segurança; as demais ficam para você revisar manualmente.</span>
+      </div>
+      <div id="pendingList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Opção B — Lançamento manual</h2>
+      <p class="hint">Sem foto ou sem internet: selecione o aluno e marque as respostas manualmente.</p>
+      <button class="btn btn-outline" id="btnManual">+ Adicionar correção manual</button>
+      <div id="manualArea"></div>
+    </div>
+
+    <button id="fabNovaFoto" title="Tirar próxima foto" aria-label="Tirar próxima foto">📷</button>
+  </section>
+
+  <!-- ============ TAB 4: RESULTADOS ============ -->
+  <section class="tab" id="tab-resultados">
+    <div class="card">
+      <div class="print-header" id="printHeader1"></div>
+      <h2 id="resultadosTitulo">Resultados — Opção 1: lista simples (assinatura em branco, para assinar agora)</h2>
+      <p class="hint" id="resultadosSub"></p>
+      <div class="toolbar no-print">
+        <button class="btn btn-gold" id="btnExportCsv">⬇️ Exportar CSV</button>
+        <button class="btn btn-outline" id="btnImprimir">🖨️ Imprimir esta lista</button>
+        <button class="btn btn-danger" id="btnLimparResultados">Limpar todos os resultados</button>
+      </div>
+      <table class="results" id="tabelaResultados">
+        <thead>
+          <tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th>Acertos</th><th>Nota (0-10)</th><th class="no-print">%</th><th class="no-print">Ações</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="msgResultados"></div>
+    </div>
+
+    <div class="card no-print" id="cardAssinaturas">
+      <h2>Preencher a coluna "Assinatura" com as assinaturas reais (recortadas da foto)</h2>
+      <p class="hint">Envie a foto (ou PDF) da lista que os alunos já assinaram. Marque 3 pontos de referência uma única vez e o app recorta a assinatura de cada aluno diretamente da foto, encaixando na tabela acima (Opção 1) — sem reimprimir a folha inteira.</p>
+      <div class="dropzone" id="sigDropzone">
+        <strong>Clique para escolher</strong> a foto ou PDF da lista já assinada<br>
+        <span style="font-size:.8rem">Não precisa de chave de API — esta etapa não usa IA</span>
+        <input type="file" id="sigFileInput" accept="image/*,application/pdf" style="display:none">
+      </div>
+      <div id="sigCalibArea"></div>
+    </div>
+
+    <div class="card no-print" id="cardOverlay">
+      <h2>Opção 2 — Sobrepor as notas na lista já assinada pelos alunos</h2>
+      <p class="hint">Envie a foto (ou PDF) da mesma folha de chamada/assinaturas que os alunos já assinaram no papel (a coluna "Nota" dela está em branco). Marque 2 pontos de referência uma única vez e o app calcula sozinho onde encaixar a nota de cada aluno, na ordem cadastrada na aba "Lista de Alunos" — sem precisar recolher assinatura nova.</p>
+      <div class="dropzone" id="overlayDropzone">
+        <strong>Clique para escolher</strong> a foto ou PDF da lista já assinada<br>
+        <span style="font-size:.8rem">Não precisa de chave de API — esta etapa não usa IA</span>
+        <input type="file" id="overlayFileInput" accept="image/*,application/pdf" style="display:none">
+      </div>
+      <div id="overlayCalibArea"></div>
+    </div>
+
+    <div class="card" id="cardDetalhe">
+      <div class="print-header" id="printHeader2"></div>
+      <h2>Detalhamento — questões que cada aluno acertou e errou</h2>
+      <p class="hint">Pensada para imprimir no verso da folha de resultados (frente = nomes e notas, verso = este detalhamento). Não tem coluna de assinatura — só nome, acertos e erros. No navegador, escolha impressão <strong>frente e verso</strong> ou imprima as duas folhas separadamente e junte-as.</p>
+      <div class="legenda">
+        <span><i style="background:var(--green-bg);border:1px solid var(--green)"></i> Acertou (mostra a letra marcada)</span>
+        <span><i style="background:var(--red-bg);border:1px solid var(--red)"></i> Errou (mostra a letra marcada)</span>
+        <span><i style="background:var(--gray-100);border:1px solid var(--gray-200)"></i> Em branco / sem marcação</span>
+      </div>
+      <div style="overflow-x:auto" id="detalheWrap">
+        <table class="results detalhe-table" id="tabelaDetalhe">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="printOverlaySheet"><img id="printOverlayImg" alt="Folha com notas sobrepostas"></section>
+
+</main>
+
+<script>
+/* ============================================================
+   ESTADO
+============================================================ */
+const LS_KEY = 'corretorGabaritos_v1';
+
+function defaultState(){
+  return {
+    config: { numQuestoes: 20, numAlternativas: 4 },
+    meta: { escola:'', professor:'', disciplina:'', turma:'', bimestre:'', data:'' },
+    gabarito: Array(20).fill(null),
+    alunos: [],
+    resultados: [] // { id, alunoIndex, alunoNome, respostas:[], acertos, nota, criadoEm }
+  };
+}
+
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    return Object.assign(defaultState(), parsed);
+  }catch(e){ return defaultState(); }
+}
+
+function saveState(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+const LETTERS = ['A','B','C','D','E'];
+
+/* ============================================================
+   TABS
+============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab === 'tab-resultados') renderResultados();
+  });
+});
+
+/* ============================================================
+   TAB 1: GABARITO
+============================================================ */
+function renderGabaritoGrid(){
+  const grid = document.getElementById('gabaritoGrid');
+  grid.innerHTML = '';
+  const n = state.config.numQuestoes;
+  const opts = LETTERS.slice(0, state.config.numAlternativas);
+  for(let i=0;i<n;i++){
+    const row = document.createElement('div');
+    row.className = 'qrow';
+    const num = document.createElement('div');
+    num.className = 'qnum';
+    num.textContent = String(i+1).padStart(2,'0');
+    row.appendChild(num);
+    const optsWrap = document.createElement('div');
+    optsWrap.className = 'opts';
+    opts.forEach(letter=>{
+      const b = document.createElement('div');
+      b.className = 'opt-btn' + (state.gabarito[i] === letter ? ' selected' : '');
+      b.textContent = letter;
+      b.addEventListener('click', ()=>{
+        state.gabarito[i] = letter;
+        renderGabaritoGrid();
+      });
+      optsWrap.appendChild(b);
+    });
+    row.appendChild(optsWrap);
+    grid.appendChild(row);
+  }
+}
+
+function loadMetaFields(){
+  document.getElementById('cfgNumQuestoes').value = state.config.numQuestoes;
+  document.getElementById('cfgNumAlternativas').value = state.config.numAlternativas;
+  document.getElementById('metaEscola').value = state.meta.escola;
+  document.getElementById('metaProfessor').value = state.meta.professor;
+  document.getElementById('metaDisciplina').value = state.meta.disciplina;
+  document.getElementById('metaTurma').value = state.meta.turma;
+  document.getElementById('metaBimestre').value = state.meta.bimestre;
+  document.getElementById('metaData').value = state.meta.data;
+}
+
+document.getElementById('btnAplicarConfig').addEventListener('click', ()=>{
+  const n = parseInt(document.getElementById('cfgNumQuestoes').value,10);
+  const alt = parseInt(document.getElementById('cfgNumAlternativas').value,10);
+  const novoGabarito = Array(n).fill(null);
+  for(let i=0;i<Math.min(n, state.gabarito.length);i++) novoGabarito[i] = state.gabarito[i];
+  state.config.numQuestoes = n;
+  state.config.numAlternativas = alt;
+  state.gabarito = novoGabarito;
+  renderGabaritoGrid();
+  showMsg('msgGabarito', 'Configuração aplicada. Não esqueça de marcar/salvar o gabarito.', 'info');
+});
+
+document.getElementById('btnSalvarGabarito').addEventListener('click', ()=>{
+  state.meta.escola = document.getElementById('metaEscola').value.trim();
+  state.meta.professor = document.getElementById('metaProfessor').value.trim();
+  state.meta.disciplina = document.getElementById('metaDisciplina').value.trim();
+  state.meta.turma = document.getElementById('metaTurma').value.trim();
+  state.meta.bimestre = document.getElementById('metaBimestre').value.trim();
+  state.meta.data = document.getElementById('metaData').value.trim();
+  const faltando = state.gabarito.some(v=>!v);
+  saveState();
+  if(faltando){
+    showMsg('msgGabarito', 'Gabarito salvo, mas há questões sem alternativa marcada.', 'error');
+  }else{
+    showMsg('msgGabarito', 'Gabarito salvo com sucesso ✔', 'ok');
+  }
+});
+
+document.getElementById('btnLimparGabarito').addEventListener('click', ()=>{
+  if(!confirm('Limpar todas as marcações do gabarito?')) return;
+  state.gabarito = Array(state.config.numQuestoes).fill(null);
+  renderGabaritoGrid();
+});
+
+function showMsg(elId, text, type){
+  const el = document.getElementById(elId);
+  el.innerHTML = `<div class="msg ${type}">${text}</div>`;
+  setTimeout(()=>{ if(el.innerHTML.includes(text)) el.innerHTML=''; }, 5000);
+}
+
+function showToast(text){
+  const t = document.getElementById('toastMsg');
+  t.textContent = text;
+  t.style.display = 'block';
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>{ t.style.display='none'; }, 2800);
+}
+
+function scrollToUploadArea(){
+  const el = document.getElementById('cardEnviarFotos');
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+document.getElementById('fabNovaFoto').addEventListener('click', ()=>{
+  document.getElementById('cameraInput').click();
+});
+
+/* ============================================================
+   TAB 2: TURMA
+============================================================ */
+function renderRoster(){
+  document.getElementById('rosterInput').value = state.alunos.join('\n');
+  const list = document.getElementById('rosterList');
+  list.innerHTML = '';
+  state.alunos.forEach(nome=>{
+    const li = document.createElement('li');
+    li.textContent = nome;
+    list.appendChild(li);
+  });
+  document.getElementById('rosterCount').textContent = state.alunos.length;
+}
+
+document.getElementById('btnSalvarRoster').addEventListener('click', ()=>{
+  const lines = document.getElementById('rosterInput').value
+    .split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  state.alunos = lines;
+  saveState();
+  renderRoster();
+  showMsg('msgRoster', `Lista salva com ${lines.length} aluno(s) ✔`, 'ok');
+});
+
+document.getElementById('btnLimparRoster').addEventListener('click', ()=>{
+  if(!confirm('Limpar a lista de alunos?')) return;
+  state.alunos = [];
+  saveState();
+  renderRoster();
+});
+
+/* ============================================================
+   TAB 3: CORRIGIR — utilidades de nome
+============================================================ */
+function normalize(str){
+  return (str||'').toString()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().trim().replace(/\s+/g,' ');
+}
+
+function levenshtein(a,b){
+  const m=a.length, n=b.length;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function bestMatches(nomeLido, roster, topN=3){
+  const nTokens = normalize(nomeLido).split(' ').filter(Boolean);
+  const scored = roster.map((nome, idx)=>{
+    const rTokens = normalize(nome).split(' ').filter(Boolean);
+    const common = nTokens.filter(t=>rTokens.includes(t)).length;
+    const dist = levenshtein(normalize(nomeLido), normalize(nome));
+    return { idx, nome, common, score: common*1000 - dist };
+  });
+  scored.sort((a,b)=>b.score-a.score);
+  return scored.slice(0, topN);
+}
+
+/* ============================================================
+   TAB 3: UPLOAD + IA
+============================================================ */
+let pendingItems = []; // {id, file, previewUrl, status, alunoIndex, respostas[]}
+let pendingCounter = 0;
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', ()=>fileInput.click());
+const cameraInput = document.getElementById('cameraInput');
+document.getElementById('btnCamera').addEventListener('click', ()=>cameraInput.click());
+cameraInput.addEventListener('change', e=>{ handleFiles(e.target.files); cameraInput.value=''; });
+dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e=> handleFiles(e.target.files));
+
+function handleFiles(fileList){
+  if(state.alunos.length===0){
+    alert('Cadastre a lista de alunos (aba "Lista de Alunos") antes de corrigir as provas.');
+    return;
+  }
+  if(state.gabarito.some(v=>!v)){
+    alert('Marque e salve o gabarito correto (aba "Gabarito Correto") antes de corrigir as provas.');
+    return;
+  }
+  Array.from(fileList).forEach(file=>{
+    const id = 'p'+(++pendingCounter);
+    const previewUrl = URL.createObjectURL(file);
+    pendingItems.push({ id, file, previewUrl, status:'pendente', alunoIndex:null, respostas: Array(state.config.numQuestoes).fill(null), nomeLido:'' });
+  });
+  renderPending();
+  fileInput.value = '';
+}
+
+function renderPending(){
+  const wrap = document.getElementById('pendingList');
+  wrap.innerHTML = '';
+  const temPendentes = pendingItems.some(p=>p.status==='pendente');
+  document.getElementById('btnProcessarTudoWrap').style.display = temPendentes ? 'flex' : 'none';
+  pendingItems.forEach(item=>{
+    if(item.status==='ok' && item.collapsed){
+      const nomeAluno = item.alunoIndex!==null ? state.alunos[item.alunoIndex] : '(sem aluno)';
+      const resultado = state.resultados.find(r=>r.alunoIndex===item.alunoIndex);
+      const notaTxt = resultado ? ('Nota ' + resultado.nota.toFixed(2) + ' · ' + resultado.acertos + '/' + resultado.total) : '';
+      const compact = document.createElement('div');
+      compact.className = 'card';
+      compact.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap';
+      const info = document.createElement('div');
+      info.innerHTML = `<span class="status-tag status-ok">✔ Corrigido</span> <strong style="margin-left:8px">${nomeAluno}</strong> <span style="color:var(--gray-600);margin-left:8px">${notaTxt}</span>`;
+      compact.appendChild(info);
+      const editBtn = document.createElement('button');
+      editBtn.className='btn btn-outline btn-sm';
+      editBtn.textContent='Editar';
+      editBtn.addEventListener('click', ()=>{ item.collapsed=false; item.status='revisar'; renderPending(); });
+      compact.appendChild(editBtn);
+      wrap.appendChild(compact);
+      return;
+    }
+    const card = document.createElement('div');
+    card.className = 'pending-card';
+
+    const left = document.createElement('div');
+    const img = document.createElement('img');
+    img.src = item.previewUrl;
+    left.appendChild(img);
+    if(item.status==='pendente'){
+      const b = document.createElement('button');
+      b.className='btn btn-primary btn-sm';
+      b.style.marginTop='10px'; b.style.width='100%';
+      b.textContent='🔎 Analisar com IA';
+      b.addEventListener('click', ()=>analyzeItem(item.id));
+      left.appendChild(b);
+    }
+    const rm = document.createElement('button');
+    rm.className='btn btn-outline btn-sm';
+    rm.style.marginTop='6px'; rm.style.width='100%';
+    rm.textContent='Remover';
+    rm.addEventListener('click', ()=>{
+      pendingItems = pendingItems.filter(p=>p.id!==item.id);
+      renderPending();
+    });
+    left.appendChild(rm);
+    card.appendChild(left);
+
+    const right = document.createElement('div');
+    const head = document.createElement('div');
+    head.className='pending-head';
+    const statusMap = { pendente:['status-pendente','Aguardando'], lendo:['status-lendo','Lendo imagem…'], revisar:['status-revisar','Revise as respostas'], ok:['status-ok','Adicionado aos resultados'] };
+    const [cls,label] = statusMap[item.status];
+    head.innerHTML = `<strong>${item.file.name}</strong><span class="status-tag ${cls}">${label}</span>`;
+    right.appendChild(head);
+
+    if(item.status==='lendo'){
+      right.innerHTML += '<div class="msg info">A IA está lendo o nome e as marcações do cartão-resposta…</div>';
+    }
+
+    if(item.status==='revisar' || item.status==='ok'){
+      // nome
+      const nomeBlock = document.createElement('div');
+      const lbl = document.createElement('label');
+      lbl.textContent = 'Nome lido: ' + (item.nomeLido || '(não identificado)');
+      nomeBlock.appendChild(lbl);
+      const chipsWrap = document.createElement('div');
+      chipsWrap.className='name-match-list';
+      const matches = bestMatches(item.nomeLido || '', state.alunos, 4);
+      matches.forEach(m=>{
+        const chip = document.createElement('div');
+        chip.className='match-chip' + (item.alunoIndex===m.idx ? ' chosen':'');
+        chip.textContent = m.nome;
+        chip.addEventListener('click', ()=>{ item.alunoIndex = m.idx; renderPending(); });
+        chipsWrap.appendChild(chip);
+      });
+      nomeBlock.appendChild(chipsWrap);
+
+      const sel = document.createElement('select');
+      const optNull = document.createElement('option');
+      optNull.value=''; optNull.textContent='-- selecionar aluno manualmente --';
+      sel.appendChild(optNull);
+      state.alunos.forEach((nome,idx)=>{
+        const o = document.createElement('option');
+        o.value = idx; o.textContent = nome;
+        if(item.alunoIndex===idx) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', ()=>{
+        item.alunoIndex = sel.value==='' ? null : parseInt(sel.value,10);
+        renderPending();
+      });
+      nomeBlock.appendChild(sel);
+      right.appendChild(nomeBlock);
+
+      // respostas grid
+      const grid = document.createElement('div');
+      grid.className='qgrid';
+      grid.style.marginTop='12px';
+      const opts = LETTERS.slice(0, state.config.numAlternativas);
+      for(let i=0;i<state.config.numQuestoes;i++){
+        const row = document.createElement('div');
+        row.className='qrow';
+        const num = document.createElement('div');
+        num.className='qnum'; num.textContent = String(i+1).padStart(2,'0');
+        row.appendChild(num);
+        const optsWrap = document.createElement('div');
+        optsWrap.className='opts';
+        opts.forEach(letter=>{
+          const correta = state.gabarito[i];
+          const marcada = item.respostas[i];
+          let cls = 'opt-btn';
+          if(marcada===letter){
+            cls += (letter===correta) ? ' correct-mark' : ' wrong-mark';
+          }
+          const b = document.createElement('div');
+          b.className = cls;
+          b.textContent = letter;
+          b.addEventListener('click', ()=>{
+            item.respostas[i] = (item.respostas[i]===letter) ? null : letter;
+            renderPending();
+          });
+          optsWrap.appendChild(b);
+        });
+        row.appendChild(optsWrap);
+        grid.appendChild(row);
+      }
+      right.appendChild(grid);
+
+      if(item.status==='revisar'){
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className='btn btn-green btn-sm';
+        confirmBtn.style.marginTop='14px';
+        confirmBtn.textContent='✔ Confirmar e adicionar aos resultados';
+        confirmBtn.addEventListener('click', ()=>{
+          if(item.alunoIndex===null){ alert('Selecione o aluno correspondente antes de confirmar.'); return; }
+          addResultado(item.alunoIndex, item.respostas);
+          const nomeConfirmado = state.alunos[item.alunoIndex];
+          item.status='ok';
+          item.collapsed=true;
+          renderPending();
+          showToast('✔ ' + nomeConfirmado + ' corrigido! Pode tirar a próxima foto.');
+          scrollToUploadArea();
+        });
+        right.appendChild(confirmBtn);
+      }
+    }
+
+    card.appendChild(right);
+    wrap.appendChild(card);
+  });
+}
+
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(reader.result.split(',')[1]);
+    reader.onerror = ()=> reject(new Error('Falha ao ler arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function lerItemComIA(item){
+  const base64 = await fileToBase64(item.file);
+  const mediaType = item.file.type || 'image/jpeg';
+  const result = await callVisionAPI(base64, mediaType);
+  item.nomeLido = result.nome || '';
+  const n = state.config.numQuestoes;
+  const opts = LETTERS.slice(0, state.config.numAlternativas);
+  const respostas = Array(n).fill(null);
+  if(result.respostas){
+    for(let i=1;i<=n;i++){
+      const v = result.respostas[String(i)];
+      if(v && opts.includes(String(v).toUpperCase())) respostas[i-1] = String(v).toUpperCase();
+    }
+  }
+  item.respostas = respostas;
+}
+
+async function analyzeItem(id){
+  const item = pendingItems.find(p=>p.id===id);
+  if(!item) return;
+  item.status='lendo';
+  renderPending();
+  try{
+    await lerItemComIA(item);
+    const matches = bestMatches(item.nomeLido || '', state.alunos, 1);
+    if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
+    item.status='revisar';
+  }catch(err){
+    console.error(err);
+    item.status='revisar';
+    item.nomeLido='';
+    alert('Não foi possível analisar a imagem automaticamente (' + err.message + '). Marque as respostas manualmente abaixo.');
+  }
+  renderPending();
+}
+
+async function processarTudoAutomatico(){
+  const alvos = pendingItems.filter(p=>p.status==='pendente');
+  if(alvos.length===0) return;
+  if(state.alunos.length===0){ alert('Cadastre a lista de alunos (aba "Lista de Alunos") antes de corrigir as provas.'); return; }
+  if(state.gabarito.some(v=>!v)){ alert('Marque e salve o gabarito correto (aba "Gabarito Correto") antes de corrigir as provas.'); return; }
+
+  const btn = document.getElementById('btnProcessarTudo');
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  let okCount = 0, revisarCount = 0, erroCount = 0;
+
+  for(const item of alvos){
+    item.status = 'lendo';
+    renderPending();
+    btn.textContent = `⏳ Processando (${okCount+revisarCount+erroCount+1}/${alvos.length})…`;
+    try{
+      await lerItemComIA(item);
+      const matches = bestMatches(item.nomeLido || '', state.alunos, 1);
+      const matchConfiavel = matches.length && matches[0].common >= 1;
+      if(matchConfiavel){
+        item.alunoIndex = matches[0].idx;
+        addResultado(item.alunoIndex, item.respostas);
+        item.status = 'ok';
+        item.collapsed = true;
+        okCount++;
+      }else{
+        if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
+        item.status = 'revisar';
+        revisarCount++;
+      }
+    }catch(err){
+      console.error(err);
+      item.status = 'revisar';
+      item.nomeLido = '';
+      erroCount++;
+    }
+    renderPending();
+  }
+
+  btn.disabled = false;
+  btn.textContent = textoOriginal;
+
+  let resumo = `✔ ${okCount} corrigida(s) automaticamente.`;
+  if(revisarCount>0) resumo += ` ${revisarCount} precisa(m) de revisão manual.`;
+  if(erroCount>0) resumo += ` ${erroCount} com erro de leitura.`;
+  showToast(resumo);
+
+  if(revisarCount>0 || erroCount>0){
+    setTimeout(()=>{
+      const primeiroPendente = document.querySelector('.status-revisar');
+      const cardAlvo = primeiroPendente ? primeiroPendente.closest('.pending-card') : null;
+      if(cardAlvo) cardAlvo.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 100);
+  }else{
+    scrollToUploadArea();
+  }
+}
+
+document.getElementById('btnProcessarTudo').addEventListener('click', processarTudoAutomatico);
+
+function buildApiHeaders(){
+  const apiKeyEl = document.getElementById('apiKeyInput');
+  const apiKey = apiKeyEl ? apiKeyEl.value.trim() : '';
+  const headers = {
+    'Content-Type':'application/json',
+    'anthropic-dangerous-direct-browser-access':'true'
+  };
+  if(apiKey){
+    headers['x-api-key'] = apiKey;
+    headers['anthropic-version'] = '2023-06-01';
+  }
+  return headers;
+}
+
+async function callVisionAPI(base64Image, mediaType){
+  const headers = buildApiHeaders();
+  const n = state.config.numQuestoes;
+  const opts = LETTERS.slice(0, state.config.numAlternativas).join(', ');
+  const prompt = 'Esta é a foto de um cartão-resposta (gabarito) de uma avaliação escolar brasileira, com '+n+' questões numeradas de 1 a '+n+'. '+
+    'Cada questão tem círculos com as letras '+opts+', e o aluno preenche (pinta) o círculo da alternativa escolhida. '+
+    'Tarefa: 1) leia o nome do estudante escrito no cabeçalho do documento, se houver; 2) para CADA questão de 1 a '+n+', identifique qual círculo está preenchido/marcado. '+
+    'Se uma questão não tiver nenhuma marcação clara, ou tiver mais de uma marcação, retorne null para essa questão (não invente uma resposta). '+
+    'Responda ESTRITAMENTE em JSON válido, sem nenhum texto antes ou depois, sem blocos de código, no formato exato: '+
+    '{"nome": "string ou null", "respostas": {"1": "A", "2": null, "3": "C"}}';
+
+  const body = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 1500,
+    messages: [{
+      role: "user",
+      content: [
+        { type: "image", source: { type: "base64", media_type: mediaType, data: base64Image } },
+        { type: "text", text: prompt }
+      ]
+    }]
+  };
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST", headers, body: JSON.stringify(body)
+  });
+  if(!resp.ok){
+    const t = await resp.text().catch(()=> '');
+    throw new Error('API retornou erro ' + resp.status + (t ? (' - '+t.slice(0,150)) : ''));
+  }
+  const data = await resp.json();
+  const textBlock = (data.content||[]).find(c=>c.type==='text');
+  if(!textBlock) throw new Error('Resposta da IA sem texto');
+  let raw = textBlock.text.trim();
+  raw = raw.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  return JSON.parse(raw);
+}
+
+/* ---------- importar lista de alunos (foto/PDF) ---------- */
+const rosterDropzone = document.getElementById('rosterDropzone');
+const rosterFileInput = document.getElementById('rosterFileInput');
+rosterDropzone.addEventListener('click', ()=>rosterFileInput.click());
+rosterDropzone.addEventListener('dragover', e=>{ e.preventDefault(); rosterDropzone.classList.add('drag'); });
+rosterDropzone.addEventListener('dragleave', ()=> rosterDropzone.classList.remove('drag'));
+rosterDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); rosterDropzone.classList.remove('drag');
+  handleRosterFiles(e.dataTransfer.files);
+});
+rosterFileInput.addEventListener('change', e=>{ handleRosterFiles(e.target.files); rosterFileInput.value=''; });
+
+async function handleRosterFiles(fileList){
+  if(!fileList || !fileList.length) return;
+  showMsg('msgRoster', 'Lendo arquivo(s) com IA, aguarde…', 'info');
+  let novosNomes = [];
+  let algumErro = false;
+  for(const file of Array.from(fileList)){
+    try{
+      const base64 = await fileToBase64(file);
+      const isPdf = file.type === 'application/pdf';
+      const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+      const nomes = await callListExtractionAPI(base64, mediaType, isPdf);
+      novosNomes = novosNomes.concat(nomes);
+    }catch(err){
+      console.error(err);
+      algumErro = true;
+      alert('Não foi possível ler "' + file.name + '": ' + err.message);
+    }
+  }
+  if(novosNomes.length){
+    const textarea = document.getElementById('rosterInput');
+    const atual = textarea.value.trim();
+    const bloco = novosNomes.join('\n');
+    textarea.value = atual ? (atual + '\n' + bloco) : bloco;
+    showMsg('msgRoster', novosNomes.length + ' nome(s) extraído(s) e adicionado(s) à lista. Revise (duplicados, erros de leitura) antes de clicar em "Salvar lista".', 'ok');
+  }else if(!algumErro){
+    showMsg('msgRoster', 'Nenhum nome foi identificado no(s) arquivo(s) enviado(s).', 'error');
+  }
+}
+
+async function callListExtractionAPI(base64Data, mediaType, isPdf){
+  const headers = buildApiHeaders();
+  const prompt = 'Este documento é uma lista de alunos de uma turma escolar brasileira — pode ser uma lista de chamada, uma folha de assinaturas, uma planilha impressa ou uma lista digitada. '+
+    'Extraia APENAS os nomes completos dos alunos, na mesma ordem em que aparecem no documento (ordem de chamada/numeração, se houver). '+
+    'Use o nome impresso/digitado quando disponível (ex.: coluna "Alunos"); se só houver assinatura cursiva manuscrita, tente lê-la da melhor forma possível. '+
+    'Ignore números de matrícula, colunas de nota/assinatura, cabeçalhos da escola e qualquer texto que não seja nome de aluno. '+
+    'Responda ESTRITAMENTE em JSON válido, sem texto antes ou depois, sem blocos de código, no formato exato: {"nomes": ["NOME COMPLETO 1", "NOME COMPLETO 2"]}';
+
+  const contentBlock = isPdf
+    ? { type: 'document', source: { type:'base64', media_type:'application/pdf', data: base64Data } }
+    : { type: 'image', source: { type:'base64', media_type: mediaType, data: base64Data } };
+
+  const body = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 2000,
+    messages: [{ role:'user', content:[ contentBlock, { type:'text', text: prompt } ] }]
+  };
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", { method:'POST', headers, body: JSON.stringify(body) });
+  if(!resp.ok){
+    const t = await resp.text().catch(()=> '');
+    throw new Error('API retornou erro ' + resp.status + (t ? (' - '+t.slice(0,150)) : ''));
+  }
+  const data = await resp.json();
+  const textBlock = (data.content||[]).find(c=>c.type==='text');
+  if(!textBlock) throw new Error('Resposta da IA sem texto');
+  let raw = textBlock.text.trim();
+  raw = raw.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  const parsed = JSON.parse(raw);
+  return Array.isArray(parsed.nomes) ? parsed.nomes.map(n=>String(n).trim()).filter(Boolean) : [];
+}
+
+/* ---------- lançamento manual ---------- */
+document.getElementById('btnManual').addEventListener('click', ()=>{
+  if(state.alunos.length===0){ alert('Cadastre a lista de alunos primeiro.'); return; }
+  if(state.gabarito.some(v=>!v)){ alert('Marque e salve o gabarito correto primeiro.'); return; }
+  renderManualForm();
+});
+
+function renderManualForm(){
+  const area = document.getElementById('manualArea');
+  area.innerHTML = '';
+  const box = document.createElement('div');
+  box.className='pending-card';
+  box.style.gridTemplateColumns='1fr';
+
+  const sel = document.createElement('select');
+  sel.style.marginBottom='10px';
+  const optNull = document.createElement('option');
+  optNull.value=''; optNull.textContent='-- selecionar aluno --';
+  sel.appendChild(optNull);
+  state.alunos.forEach((nome,idx)=>{
+    const o=document.createElement('option'); o.value=idx; o.textContent=nome; sel.appendChild(o);
+  });
+  box.appendChild(sel);
+
+  const respostas = Array(state.config.numQuestoes).fill(null);
+  const grid = document.createElement('div');
+  grid.className='qgrid';
+  const opts = LETTERS.slice(0, state.config.numAlternativas);
+  for(let i=0;i<state.config.numQuestoes;i++){
+    const row = document.createElement('div'); row.className='qrow';
+    const num = document.createElement('div'); num.className='qnum'; num.textContent=String(i+1).padStart(2,'0');
+    row.appendChild(num);
+    const optsWrap = document.createElement('div'); optsWrap.className='opts';
+    opts.forEach(letter=>{
+      const b = document.createElement('div');
+      b.className='opt-btn';
+      b.textContent=letter;
+      b.addEventListener('click', ()=>{
+        respostas[i] = (respostas[i]===letter) ? null : letter;
+        b.parentElement.querySelectorAll('.opt-btn').forEach(x=>x.classList.remove('selected'));
+        if(respostas[i]) b.classList.add('selected');
+      });
+      optsWrap.appendChild(b);
+    });
+    row.appendChild(optsWrap);
+    grid.appendChild(row);
+  }
+  box.appendChild(grid);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className='btn btn-green btn-sm';
+  confirmBtn.style.marginTop='14px';
+  confirmBtn.textContent='✔ Adicionar aos resultados';
+  confirmBtn.addEventListener('click', ()=>{
+    if(sel.value===''){ alert('Selecione o aluno.'); return; }
+    const nomeConfirmado = state.alunos[parseInt(sel.value,10)];
+    addResultado(parseInt(sel.value,10), respostas);
+    showToast('✔ ' + nomeConfirmado + ' corrigido! Pronto para o próximo.');
+    renderManualForm();
+  });
+  box.appendChild(confirmBtn);
+
+  area.appendChild(box);
+}
+
+/* ============================================================
+   RESULTADOS
+============================================================ */
+function addResultado(alunoIndex, respostas){
+  const total = state.config.numQuestoes;
+  let acertos = 0;
+  for(let i=0;i<total;i++){
+    if(respostas[i] && state.gabarito[i] && respostas[i]===state.gabarito[i]) acertos++;
+  }
+  const nota = Math.round((acertos/total)*1000)/100; // 0-10, 2 casas
+  const registro = {
+    id: 'r'+Date.now()+Math.random().toString(16).slice(2),
+    alunoIndex, alunoNome: state.alunos[alunoIndex],
+    respostas: respostas.slice(), acertos, total, nota,
+    criadoEm: new Date().toISOString()
+  };
+  // substitui resultado anterior do mesmo aluno, se houver
+  state.resultados = state.resultados.filter(r=>r.alunoIndex!==alunoIndex);
+  state.resultados.push(registro);
+  saveState();
+}
+
+function notaClasse(nota){
+  if(nota>=7) return 'nota-alta';
+  if(nota>=5) return 'nota-media';
+  return 'nota-baixa';
+}
+
+function renderPrintHeader(){
+  const partes = [];
+  if(state.meta.professor) partes.push('Professor(a): ' + state.meta.professor);
+  if(state.meta.turma) partes.push('Turma: ' + state.meta.turma);
+  if(state.meta.disciplina) partes.push('Disciplina: ' + state.meta.disciplina);
+  if(state.meta.bimestre) partes.push(state.meta.bimestre);
+  if(state.meta.data) partes.push('Data: ' + state.meta.data);
+  const escolaHtml = state.meta.escola ? `<div class="escola">${state.meta.escola}</div>` : '';
+  const linha2Html = partes.length ? `<div class="linha2">${partes.join(' &nbsp;·&nbsp; ')}</div>` : '';
+  const html = escolaHtml + linha2Html;
+  const h1 = document.getElementById('printHeader1');
+  const h2 = document.getElementById('printHeader2');
+  if(h1) h1.innerHTML = html;
+  if(h2) h2.innerHTML = html;
+}
+
+function renderResultados(){
+  renderPrintHeader();
+  const sub = [];
+  if(state.meta.disciplina) sub.push(state.meta.disciplina);
+  if(state.meta.turma) sub.push('Turma ' + state.meta.turma);
+  if(state.meta.bimestre) sub.push(state.meta.bimestre);
+  if(state.meta.data) sub.push(state.meta.data);
+  document.getElementById('resultadosSub').textContent = sub.join(' · ');
+
+  const tbody = document.querySelector('#tabelaResultados tbody');
+  tbody.innerHTML = '';
+
+  // ordena pela ordem da lista de chamada
+  const ordenado = state.alunos.map((nome,idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex===idx);
+    return { idx, nome, r };
+  });
+
+  ordenado.forEach(({idx,nome,r})=>{
+    const tr = document.createElement('tr');
+    const assinaturaHtml = signatureCrops[idx] ? `<img src="${signatureCrops[idx]}" alt="assinatura">` : '';
+    if(r){
+      const pct = Math.round((r.acertos/r.total)*100);
+      tr.innerHTML = `
+        <td>${idx+1}</td>
+        <td>${nome}</td>
+        <td class="assinatura-cell">${assinaturaHtml}</td>
+        <td>(${r.acertos}/${r.total})</td>
+        <td class="nota-cell ${notaClasse(r.nota)}">${r.nota.toFixed(2)}</td>
+        <td class="no-print">${pct}%</td>
+        <td class="no-print acoes-cell"></td>
+      `;
+      const tdAcoes = tr.querySelector('.acoes-cell');
+      const del = document.createElement('button');
+      del.className='btn btn-outline btn-sm';
+      del.textContent='Remover';
+      del.addEventListener('click', ()=>{
+        state.resultados = state.resultados.filter(x=>x.id!==r.id);
+        saveState();
+        renderResultados();
+      });
+      tdAcoes.appendChild(del);
+    }else{
+      tr.innerHTML = `
+        <td>${idx+1}</td>
+        <td>${nome}</td>
+        <td class="assinatura-cell">${assinaturaHtml}</td>
+        <td colspan="3" style="color:var(--gray-400)">ainda não corrigido</td>
+        <td class="no-print acoes-cell"></td>
+      `;
+    }
+    tbody.appendChild(tr);
+  });
+
+  renderDetalhe();
+}
+
+function renderDetalhe(){
+  const n = state.config.numQuestoes;
+  const thead = document.querySelector('#tabelaDetalhe thead');
+  const tbody = document.querySelector('#tabelaDetalhe tbody');
+
+  let headRow = '<tr><th>Aluno</th>';
+  for(let i=1;i<=n;i++) headRow += `<th>${i}</th>`;
+  headRow += '</tr>';
+  let gabRow = '<tr><th style="background:var(--gold);color:var(--navy)">Gabarito</th>';
+  for(let i=0;i<n;i++) gabRow += `<th style="background:var(--gold);color:var(--navy)">${state.gabarito[i] || '-'}</th>`;
+  gabRow += '</tr>';
+  thead.innerHTML = headRow + gabRow;
+
+  tbody.innerHTML = '';
+  state.alunos.forEach((nome, idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex===idx);
+    const tr = document.createElement('tr');
+    let rowHtml = `<td>${nome}</td>`;
+    if(r){
+      for(let i=0;i<n;i++){
+        const marcada = r.respostas[i];
+        const correta = state.gabarito[i];
+        if(!marcada){
+          rowHtml += `<td style="background:var(--gray-100);color:var(--gray-400)">–</td>`;
+        }else if(marcada===correta){
+          rowHtml += `<td style="background:var(--green-bg);color:var(--green);font-weight:700">${marcada}</td>`;
+        }else{
+          rowHtml += `<td style="background:var(--red-bg);color:var(--red);font-weight:700">${marcada}</td>`;
+        }
+      }
+    }else{
+      rowHtml += `<td colspan="${n}" style="color:var(--gray-400)">não corrigido</td>`;
+    }
+    tr.innerHTML = rowHtml;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ============================================================
+   OPÇÃO 2 — SOBREPOR NOTAS NA LISTA JÁ ASSINADA
+   (não usa IA: apenas desenho em canvas sobre a imagem/PDF enviado)
+============================================================ */
+let overlayState = {
+  naturalCanvas: null,
+  naturalWidth: 0,
+  naturalHeight: 0,
+  points: [],       // até 2 pontos, em coordenadas NATURAIS da imagem
+  calibrated: false,
+  offsetX: 0,
+  offsetY: 0
+};
+
+function imageFileToCanvas(file){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve(c);
+    };
+    img.onerror = ()=> reject(new Error('Não foi possível carregar a imagem.'));
+    img.src = url;
+  });
+}
+
+function ensurePdfJs(){
+  return new Promise((resolve, reject)=>{
+    if(window.pdfjsLib){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = ()=>{
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    s.onerror = ()=> reject(new Error('Não foi possível carregar o leitor de PDF (verifique a conexão com a internet).'));
+    document.head.appendChild(s);
+  });
+}
+
+async function pdfFileToCanvas(file){
+  await ensurePdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 2.5 });
+  const c = document.createElement('canvas');
+  c.width = viewport.width; c.height = viewport.height;
+  await page.render({ canvasContext: c.getContext('2d'), viewport }).promise;
+  return c;
+}
+
+async function loadOverlayFile(file){
+  const area = document.getElementById('overlayCalibArea');
+  area.innerHTML = '<div class="msg info">Carregando arquivo…</div>';
+  try{
+    const isPdf = file.type === 'application/pdf';
+    const canvas = isPdf ? await pdfFileToCanvas(file) : await imageFileToCanvas(file);
+    overlayState = { naturalCanvas: canvas, naturalWidth: canvas.width, naturalHeight: canvas.height, points: [], calibrated:false, offsetX:0, offsetY:0 };
+    renderOverlayUI();
+  }catch(err){
+    console.error(err);
+    area.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function computeGradePositions(){
+  const n = state.alunos.length;
+  if(overlayState.points.length < 2 || n < 2) return [];
+  const p1 = overlayState.points[0], p2 = overlayState.points[1];
+  const positions = [];
+  for(let i=0;i<n;i++){
+    const t = i/(n-1);
+    positions.push({
+      x: p1.x + (p2.x - p1.x)*t + overlayState.offsetX,
+      y: p1.y + (p2.y - p1.y)*t + overlayState.offsetY
+    });
+  }
+  return positions;
+}
+
+function drawGradeText(ctx, text, x, y, color, fontSize){
+  ctx.font = 'bold ' + Math.max(fontSize,10) + 'px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(fontSize/4, 2);
+  ctx.strokeStyle = '#fff';
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+function corDaNota(nota){
+  if(nota>=7) return '#1e8e3e';
+  if(nota>=5) return '#8a6d00';
+  return '#c62828';
+}
+
+function drawOverlayPreview(canvas, scale){
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(overlayState.naturalCanvas, 0, 0, canvas.width, canvas.height);
+  overlayState.points.forEach((p, idx)=>{
+    ctx.beginPath();
+    ctx.arc(p.x*scale, p.y*scale, 6, 0, Math.PI*2);
+    ctx.fillStyle = idx===0 ? '#1a365d' : '#c9a227';
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  });
+  if(overlayState.calibrated){
+    const positions = computeGradePositions();
+    positions.forEach((pos, idx)=>{
+      const r = state.resultados.find(res=>res.alunoIndex===idx);
+      const texto = r ? r.nota.toFixed(1) : '—';
+      const cor = r ? corDaNota(r.nota) : '#999';
+      drawGradeText(ctx, texto, pos.x*scale, pos.y*scale, cor, Math.max(16*scale, 10));
+    });
+  }
+}
+
+function buildFinalOverlayCanvas(){
+  const c = document.createElement('canvas');
+  c.width = overlayState.naturalWidth;
+  c.height = overlayState.naturalHeight;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(overlayState.naturalCanvas, 0, 0);
+  const baseFont = Math.max(overlayState.naturalWidth/45, 22);
+  computeGradePositions().forEach((pos, idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex===idx);
+    const texto = r ? r.nota.toFixed(1) : '—';
+    const cor = r ? corDaNota(r.nota) : '#999';
+    drawGradeText(ctx, texto, pos.x, pos.y, cor, baseFont);
+  });
+  return c;
+}
+
+function renderOverlayUI(){
+  const area = document.getElementById('overlayCalibArea');
+  area.innerHTML = '';
+  if(!overlayState.naturalCanvas) return;
+
+  const info = document.createElement('div');
+  if(overlayState.points.length === 0){
+    info.className = 'msg info';
+    info.textContent = '1) Clique na imagem exatamente onde deve ficar a nota do 1º aluno da lista (' + (state.alunos[0] || '1º aluno') + '), dentro da coluna "Nota".';
+  }else if(overlayState.points.length === 1){
+    info.className = 'msg info';
+    info.textContent = '2) Agora clique onde deve ficar a nota do último aluno da lista (' + (state.alunos[state.alunos.length-1] || 'último aluno') + '), na mesma coluna.';
+  }else{
+    info.className = 'msg ok';
+    info.textContent = 'Calibrado! Confira a pré-visualização abaixo — se algo estiver um pouco desalinhado, use os ajustes finos.';
+  }
+  area.appendChild(info);
+
+  const previewWrap = document.createElement('div');
+  previewWrap.style.cssText = 'overflow:auto;border:1px solid var(--gray-200);border-radius:8px;margin-top:10px';
+  const canvas = document.createElement('canvas');
+  const maxW = Math.min(780, overlayState.naturalWidth);
+  const scale = maxW / overlayState.naturalWidth;
+  canvas.width = maxW;
+  canvas.height = Math.round(overlayState.naturalHeight * scale);
+  canvas.style.width = '100%';
+  canvas.style.cursor = overlayState.points.length < 2 ? 'crosshair' : 'default';
+  previewWrap.appendChild(canvas);
+  area.appendChild(previewWrap);
+  drawOverlayPreview(canvas, scale);
+
+  canvas.addEventListener('click', (e)=>{
+    if(overlayState.points.length >= 2) return;
+    if(state.alunos.length < 2){ alert('Cadastre pelo menos 2 alunos na aba "Lista de Alunos" antes de calibrar.'); return; }
+    const rect = canvas.getBoundingClientRect();
+    const dispX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const dispY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    overlayState.points.push({ x: dispX/scale, y: dispY/scale });
+    if(overlayState.points.length === 2) overlayState.calibrated = true;
+    renderOverlayUI();
+  });
+
+  if(overlayState.points.length > 0){
+    const btnRow = document.createElement('div');
+    btnRow.className = 'toolbar no-print';
+    btnRow.style.marginTop = '10px';
+    const btnReset = document.createElement('button');
+    btnReset.className = 'btn btn-outline btn-sm';
+    btnReset.textContent = '🔄 Recalibrar';
+    btnReset.addEventListener('click', ()=>{ overlayState.points=[]; overlayState.calibrated=false; renderOverlayUI(); });
+    btnRow.appendChild(btnReset);
+    area.appendChild(btnRow);
+  }
+
+  if(overlayState.calibrated){
+    const fine = document.createElement('div');
+    fine.className = 'row';
+    fine.style.marginTop = '12px';
+    fine.innerHTML = `
+      <div><label>Ajuste fino horizontal (px)</label><input type="number" id="fineX" value="${overlayState.offsetX}" style="width:100px"></div>
+      <div><label>Ajuste fino vertical (px)</label><input type="number" id="fineY" value="${overlayState.offsetY}" style="width:100px"></div>
+    `;
+    area.appendChild(fine);
+    document.getElementById('fineX').addEventListener('input', e=>{ overlayState.offsetX = parseInt(e.target.value,10)||0; drawOverlayPreview(canvas, scale); });
+    document.getElementById('fineY').addEventListener('input', e=>{ overlayState.offsetY = parseInt(e.target.value,10)||0; drawOverlayPreview(canvas, scale); });
+
+    const printBtn = document.createElement('button');
+    printBtn.className = 'btn btn-green no-print';
+    printBtn.style.marginTop = '14px';
+    printBtn.textContent = '🖨️ Imprimir esta folha';
+    printBtn.addEventListener('click', imprimirFolhaOverlay);
+    area.appendChild(printBtn);
+  }
+}
+
+function imprimirFolhaOverlay(){
+  if(!overlayState.calibrated){ alert('Calibre os 2 pontos primeiro (clique na nota do 1º e do último aluno).'); return; }
+  const finalCanvas = buildFinalOverlayCanvas();
+  document.getElementById('printOverlayImg').src = finalCanvas.toDataURL('image/png');
+  document.body.classList.add('print-overlay-mode');
+  setTimeout(()=> window.print(), 80);
+}
+window.addEventListener('afterprint', ()=>{ document.body.classList.remove('print-overlay-mode'); });
+
+const overlayDropzone = document.getElementById('overlayDropzone');
+const overlayFileInput = document.getElementById('overlayFileInput');
+overlayDropzone.addEventListener('click', ()=> overlayFileInput.click());
+overlayDropzone.addEventListener('dragover', e=>{ e.preventDefault(); overlayDropzone.classList.add('drag'); });
+overlayDropzone.addEventListener('dragleave', ()=> overlayDropzone.classList.remove('drag'));
+overlayDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); overlayDropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(f) loadOverlayFile(f);
+});
+overlayFileInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(f) loadOverlayFile(f);
+  overlayFileInput.value = '';
+});
+
+/* ============================================================
+   PREENCHER ASSINATURA COM RECORTE REAL (não usa IA)
+============================================================ */
+let sigCalibState = { naturalCanvas:null, naturalWidth:0, naturalHeight:0, points:[], calibrated:false };
+let signatureCrops = []; // data URLs alinhados com o índice de state.alunos
+
+function normalizeRect(p1, p2){
+  return {
+    x1: Math.min(p1.x,p2.x), y1: Math.min(p1.y,p2.y),
+    x2: Math.max(p1.x,p2.x), y2: Math.max(p1.y,p2.y)
+  };
+}
+
+async function loadSignatureFile(file){
+  const area = document.getElementById('sigCalibArea');
+  area.innerHTML = '<div class="msg info">Carregando arquivo…</div>';
+  try{
+    const isPdf = file.type === 'application/pdf';
+    const canvas = isPdf ? await pdfFileToCanvas(file) : await imageFileToCanvas(file);
+    sigCalibState = { naturalCanvas:canvas, naturalWidth:canvas.width, naturalHeight:canvas.height, points:[], calibrated:false };
+    renderSignatureCalibUI();
+  }catch(err){
+    console.error(err);
+    area.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+}
+
+function drawSigPreview(canvas, scale){
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(sigCalibState.naturalCanvas, 0, 0, canvas.width, canvas.height);
+  const pts = sigCalibState.points;
+  pts.forEach((p, idx)=>{
+    ctx.beginPath();
+    ctx.arc(p.x*scale, p.y*scale, 6, 0, Math.PI*2);
+    ctx.fillStyle = ['#1a365d','#c9a227','#1e8e3e'][idx] || '#333';
+    ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+  });
+  if(pts.length>=2){
+    const r = normalizeRect(pts[0], pts[1]);
+    ctx.strokeStyle='#c62828'; ctx.lineWidth=2;
+    ctx.strokeRect(r.x1*scale, r.y1*scale, (r.x2-r.x1)*scale, (r.y2-r.y1)*scale);
+  }
+  if(pts.length===3){
+    const r1 = normalizeRect(pts[0], pts[1]);
+    const w = r1.x2-r1.x1, h = r1.y2-r1.y1;
+    ctx.strokeStyle='#1e8e3e'; ctx.lineWidth=2;
+    ctx.strokeRect(r1.x1*scale, pts[2].y*scale, w*scale, h*scale);
+  }
+}
+
+function renderSignatureCalibUI(){
+  const area = document.getElementById('sigCalibArea');
+  area.innerHTML = '';
+  if(!sigCalibState.naturalCanvas) return;
+
+  const passos = [
+    '1) Clique no canto SUPERIOR ESQUERDO da assinatura do 1º aluno da lista (' + (state.alunos[0]||'1º aluno') + ').',
+    '2) Agora clique no canto INFERIOR DIREITO dessa mesma assinatura (ainda do 1º aluno) — isso define o tamanho do recorte.',
+    '3) Por fim, clique no canto SUPERIOR ESQUERDO da assinatura do ÚLTIMO aluno da lista (' + (state.alunos[state.alunos.length-1]||'último aluno') + ').'
+  ];
+  const info = document.createElement('div');
+  if(sigCalibState.points.length < 3){
+    info.className='msg info';
+    info.textContent = passos[sigCalibState.points.length];
+  }else{
+    info.className='msg ok';
+    info.textContent = 'Calibrado! Confira os quadros na pré-visualização e clique em "Aplicar assinaturas na tabela".';
+  }
+  area.appendChild(info);
+
+  const previewWrap = document.createElement('div');
+  previewWrap.style.cssText = 'overflow:auto;border:1px solid var(--gray-200);border-radius:8px;margin-top:10px';
+  const canvas = document.createElement('canvas');
+  const maxW = Math.min(780, sigCalibState.naturalWidth);
+  const scale = maxW / sigCalibState.naturalWidth;
+  canvas.width = maxW;
+  canvas.height = Math.round(sigCalibState.naturalHeight * scale);
+  canvas.style.width = '100%';
+  canvas.style.cursor = sigCalibState.points.length < 3 ? 'crosshair' : 'default';
+  previewWrap.appendChild(canvas);
+  area.appendChild(previewWrap);
+  drawSigPreview(canvas, scale);
+
+  canvas.addEventListener('click', (e)=>{
+    if(sigCalibState.points.length >= 3) return;
+    if(state.alunos.length < 2){ alert('Cadastre pelo menos 2 alunos na aba "Lista de Alunos" antes de calibrar.'); return; }
+    const rect = canvas.getBoundingClientRect();
+    const dispX = (e.clientX-rect.left) * (canvas.width/rect.width);
+    const dispY = (e.clientY-rect.top) * (canvas.height/rect.height);
+    sigCalibState.points.push({ x: dispX/scale, y: dispY/scale });
+    if(sigCalibState.points.length===3) sigCalibState.calibrated = true;
+    renderSignatureCalibUI();
+  });
+
+  const btnRow = document.createElement('div');
+  btnRow.className='toolbar no-print';
+  btnRow.style.marginTop='10px';
+  if(sigCalibState.points.length>0){
+    const btnReset = document.createElement('button');
+    btnReset.className='btn btn-outline btn-sm';
+    btnReset.textContent='🔄 Recalibrar';
+    btnReset.addEventListener('click', ()=>{ sigCalibState.points=[]; sigCalibState.calibrated=false; renderSignatureCalibUI(); });
+    btnRow.appendChild(btnReset);
+  }
+  if(sigCalibState.calibrated){
+    const btnAplicar = document.createElement('button');
+    btnAplicar.className='btn btn-green btn-sm';
+    btnAplicar.textContent='✔ Aplicar assinaturas na tabela';
+    btnAplicar.addEventListener('click', aplicarAssinaturasNaTabela);
+    btnRow.appendChild(btnAplicar);
+  }
+  if(signatureCrops.length>0){
+    const btnRemover = document.createElement('button');
+    btnRemover.className='btn btn-danger btn-sm';
+    btnRemover.textContent='Remover assinaturas da tabela';
+    btnRemover.addEventListener('click', ()=>{
+      signatureCrops = [];
+      renderResultados();
+      showToast('Assinaturas removidas da tabela.');
+    });
+    btnRow.appendChild(btnRemover);
+  }
+  area.appendChild(btnRow);
+}
+
+function computeSignatureCrops(){
+  const n = state.alunos.length;
+  const pts = sigCalibState.points;
+  if(pts.length<3 || n<2) return [];
+  const r1 = normalizeRect(pts[0], pts[1]);
+  const colWidth = r1.x2 - r1.x1;
+  const boxHeight = r1.y2 - r1.y1;
+  const rowSpacing = (pts[2].y - r1.y1) / (n-1);
+  const cropHeight = Math.min(boxHeight, Math.abs(rowSpacing)*0.98) || boxHeight;
+  const crops = [];
+  for(let i=0;i<n;i++){
+    const sx = Math.max(0, Math.round(r1.x1));
+    const sy = Math.max(0, Math.round(r1.y1 + i*rowSpacing));
+    const sw = Math.max(1, Math.round(colWidth));
+    const sh = Math.max(1, Math.round(cropHeight));
+    const c = document.createElement('canvas');
+    c.width = sw; c.height = sh;
+    c.getContext('2d').drawImage(sigCalibState.naturalCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    crops.push(c.toDataURL('image/png'));
+  }
+  return crops;
+}
+
+function aplicarAssinaturasNaTabela(){
+  signatureCrops = computeSignatureCrops();
+  renderResultados();
+  showToast('✔ Assinaturas aplicadas na tabela de resultados.');
+}
+
+const sigDropzone = document.getElementById('sigDropzone');
+const sigFileInput = document.getElementById('sigFileInput');
+sigDropzone.addEventListener('click', ()=> sigFileInput.click());
+sigDropzone.addEventListener('dragover', e=>{ e.preventDefault(); sigDropzone.classList.add('drag'); });
+sigDropzone.addEventListener('dragleave', ()=> sigDropzone.classList.remove('drag'));
+sigDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); sigDropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(f) loadSignatureFile(f);
+});
+sigFileInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(f) loadSignatureFile(f);
+  sigFileInput.value = '';
+});
+
+document.getElementById('btnExportCsv').addEventListener('click', ()=>{
+
+  let csv = 'Numero;Aluno;Acertos;Total;Nota;Percentual\n';
+  state.alunos.forEach((nome,idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex===idx);
+    if(r){
+      const pct = Math.round((r.acertos/r.total)*100);
+      csv += `${idx+1};${nome};${r.acertos};${r.total};${r.nota.toFixed(2)};${pct}%\n`;
+    }else{
+      csv += `${idx+1};${nome};;;;\n`;
+    }
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const nomeArq = 'resultados_' + (state.meta.turma||'turma').replace(/\s+/g,'_') + '.csv';
+  a.href = url; a.download = nomeArq; a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btnImprimir').addEventListener('click', ()=> window.print());
+
+document.getElementById('btnLimparResultados').addEventListener('click', ()=>{
+  if(!confirm('Remover TODOS os resultados salvos? Esta ação não pode ser desfeita.')) return;
+  state.resultados = [];
+  saveState();
+  renderResultados();
+});
+
+/* ============================================================
+   INIT
+============================================================ */
+function init(){
+  loadMetaFields();
+  renderGabaritoGrid();
+  renderRoster();
+  renderResultados();
+  initPWA();
+}
+init();
+
+/* ============================================================
+   PWA — instalação como app (ícone na tela + modo standalone)
+============================================================ */
+function initPWA(){
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(err=>console.log('SW não registrado:', err.message));
+    });
+  }
+  let deferredPrompt = null;
+  const btnInstalar = document.getElementById('btnInstalarApp');
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredPrompt = e;
+    btnInstalar.style.display = 'inline-flex';
+  });
+  btnInstalar.addEventListener('click', async ()=>{
+    if(!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    btnInstalar.style.display = 'none';
+  });
+  window.addEventListener('appinstalled', ()=>{
+    btnInstalar.style.display = 'none';
+    showToast('✔ App instalado! Procure o ícone na tela do seu celular.');
+  });
+}
+</script>
+</body>
+</html>
