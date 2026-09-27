@@ -217,16 +217,18 @@
     main{padding:0 !important; max-width:100% !important}
     .card{box-shadow:none !important; padding:4px 2px !important; margin-bottom:8px !important; border-radius:0 !important}
     .card h2{font-size:.92rem !important; margin-bottom:4px !important}
+    #resultadosTitulo{display:none !important}
     .card p.hint{display:none !important}
     .print-header{display:block !important; margin-bottom:6px; padding-bottom:5px; border-bottom:1.2pt solid #333}
     .print-header .escola{font-size:11pt; font-weight:700; color:#000}
     .print-header .linha2{font-size:8.5pt; color:#222; margin-top:2px}
+    .print-header .titulo-simulado{font-size:14pt; font-weight:800; letter-spacing:.4px; color:#000; text-align:center; margin-bottom:3px}
     .legenda{font-size:.65rem !important; margin:3px 0 6px !important}
 
     table.results{width:100% !important; table-layout:fixed !important}
     table.results th:nth-child(1), table.results td:nth-child(1){width:8mm !important}
-    table.results th:nth-child(2), table.results td:nth-child(2){width:46mm !important}
-    .assinatura-cell{width:72mm !important}
+    table.results th:nth-child(2), table.results td:nth-child(2){width:56mm !important}
+    .assinatura-cell{width:56mm !important}
     table.results th:nth-child(4), table.results td:nth-child(4){width:26mm !important}
     table.results th{background:#f2f2f2 !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     table.results td, table.results th{
@@ -1366,8 +1368,7 @@ function addResultado(alunoIndex, respostas){
 }
 
 function notaClasse(nota){
-  if(nota>=7) return 'nota-alta';
-  if(nota>=5) return 'nota-media';
+  if(nota>=5) return 'nota-alta';
   return 'nota-baixa';
 }
 
@@ -1380,11 +1381,12 @@ function renderPrintHeader(){
   if(state.meta.data) partes.push('Data: ' + state.meta.data);
   const escolaHtml = state.meta.escola ? `<div class="escola">${state.meta.escola}</div>` : '';
   const linha2Html = partes.length ? `<div class="linha2">${partes.join(' &nbsp;·&nbsp; ')}</div>` : '';
-  const html = escolaHtml + linha2Html;
+  const metaHtml = escolaHtml + linha2Html;
+  const tituloHtml = '<div class="titulo-simulado">RESULTADOS DO SIMULADO</div>';
   const h1 = document.getElementById('printHeader1');
   const h2 = document.getElementById('printHeader2');
-  if(h1) h1.innerHTML = html;
-  if(h2) h2.innerHTML = html;
+  if(h1) h1.innerHTML = tituloHtml + metaHtml;
+  if(h2) h2.innerHTML = metaHtml;
 }
 
 function renderResultados(){
@@ -1579,9 +1581,7 @@ function drawGradeText(ctx, text, x, y, color, fontSize){
 
 function corDaNota(acertos, total){
   const pct = total ? (acertos/total)*100 : 0;
-  if(pct>=70) return '#1e8e3e';
-  if(pct>=50) return '#8a6d00';
-  return '#c62828';
+  return pct>=50 ? '#1e8e3e' : '#c62828';
 }
 
 function drawOverlayPreview(canvas, scale){
