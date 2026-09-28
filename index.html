@@ -147,6 +147,7 @@
   table.results th{background:var(--navy);color:#fff;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
   table.results tr:nth-child(even){background:var(--gray-50)}
   .assinatura-cell{min-width:220px}
+  .tbl-resumo .cell-res{text-align:center}
   .assinatura-cell img{max-width:100%;max-height:40px;display:block;margin:0 auto}
   .nota-cell{font-weight:700}
   .nota-alta{color:var(--green)}
@@ -246,6 +247,9 @@
     .tbl-resumo th:nth-child(2), .tbl-resumo td:nth-child(2){width:85mm !important}
     .assinatura-cell{width:50mm !important}
     .tbl-resumo th:nth-child(4), .tbl-resumo td:nth-child(4){text-align:center !important}
+    .tbl-resumo .cell-res{text-align:center !important}
+    .tbl-resumo.multi th:nth-child(2), .tbl-resumo.multi td:nth-child(2){width:80mm !important}
+    .tbl-resumo.multi .assinatura-cell{width:40mm !important}
     table.results th{background:#f2f2f2 !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     table.results td, table.results th{
       border:.6pt solid #333 !important; padding:1px 6px !important; line-height:1.05 !important; font-size:7.6pt !important;
@@ -1553,7 +1557,7 @@ function renderVisaoSelector(){
   sel.innerHTML = '';
   const og = document.createElement('option');
   og.value = 'geral';
-  og.textContent = 'Geral — todas as questões (1–' + state.config.numQuestoes + ')';
+  og.textContent = 'Todas as matérias — lado a lado (questões 1–' + state.config.numQuestoes + ')';
   sel.appendChild(og);
   state.materias.forEach(m=>{
     const f = faixaDaVisao(m.id);
@@ -1580,9 +1584,22 @@ function renderResultados(){
   if(state.meta.bimestre) sub.push(state.meta.bimestre);
   if(state.meta.data) sub.push(state.meta.data);
   document.getElementById('resultadosSub').textContent = sub.join(' · ');
+  const multi = (visaoMateria === 'geral' && state.materias.length > 0);
   document.getElementById('resultadosTitulo').textContent = f.nome
     ? ('Resultados — ' + f.nome + ' (questões ' + f.inicio + '–' + f.fim + ')')
-    : 'Resultados — Opção 1: lista simples (assinatura em branco, para assinar agora)';
+    : (multi ? 'Resultados — todas as matérias' : 'Resultados — Opção 1: lista simples (assinatura em branco, para assinar agora)');
+
+  // colunas de resultado: uma por matéria + Total (visão geral com matérias) ou só "Acertos"
+  const colunas = multi
+    ? state.materias.map(m=>{ const fm = faixaDaVisao(m.id); return { rotulo: m.nome || 'Matéria', inicio: fm.inicio, fim: fm.fim }; })
+        .concat([{ rotulo: 'Total', inicio: 1, fim: state.config.numQuestoes }])
+    : [{ rotulo: 'Acertos', inicio: f.inicio, fim: f.fim }];
+  const tabela = document.getElementById('tabelaResultados');
+  tabela.classList.toggle('multi', multi);
+  tabela.querySelector('thead').innerHTML =
+    '<tr><th>Nº</th><th>Aluno</th><th>Assinatura</th>' +
+    colunas.map(c=>`<th class="cell-res">${esc(c.rotulo)}</th>`).join('') +
+    '<th class="no-print">%</th><th class="no-print">Ações</th></tr>';
   const dt = document.getElementById('detalheTitulo');
   if(dt) dt.textContent = f.nome ? ('Detalhamento — ' + f.nome) : 'Detalhamento — questões que cada aluno acertou e errou';
 
@@ -1599,13 +1616,15 @@ function renderResultados(){
     const tr = document.createElement('tr');
     const assinaturaHtml = signatureCrops[idx] ? `<img src="${signatureCrops[idx]}" alt="assinatura">` : '';
     if(r){
-      const c = contarAcertos(r.respostas, f.inicio, f.fim);
-      const pct = c.total ? Math.round((c.acertos/c.total)*100) : 0;
+      const cont = colunas.map(col=>contarAcertos(r.respostas, col.inicio, col.fim));
+      const ult = cont[cont.length-1];
+      const pct = ult.total ? Math.round((ult.acertos/ult.total)*100) : 0;
+      const celulas = cont.map(c=>`<td class="nota-cell cell-res ${classePorPct(c.acertos, c.total)}">${c.acertos}/${c.total}</td>`).join('');
       tr.innerHTML = `
         <td>${idx+1}</td>
         <td>${esc(nome)}</td>
         <td class="assinatura-cell">${assinaturaHtml}</td>
-        <td class="nota-cell ${classePorPct(c.acertos, c.total)}">${c.acertos}/${c.total}</td>
+        ${celulas}
         <td class="no-print">${pct}%</td>
         <td class="no-print acoes-cell"></td>
       `;
@@ -1624,7 +1643,7 @@ function renderResultados(){
         <td>${idx+1}</td>
         <td>${esc(nome)}</td>
         <td class="assinatura-cell">${assinaturaHtml}</td>
-        <td colspan="2" style="color:var(--gray-400)">ainda não corrigido</td>
+        <td colspan="${colunas.length + 1}" style="color:var(--gray-400)">ainda não corrigido</td>
         <td class="no-print acoes-cell"></td>
       `;
     }
