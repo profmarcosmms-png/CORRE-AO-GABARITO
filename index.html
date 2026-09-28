@@ -163,6 +163,11 @@
   .legenda i{width:14px;height:14px;border-radius:3px;display:inline-block}
 
   #printOverlaySheet{display:none}
+  #printAllSheet{display:none}
+  .mat-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px}
+  .mat-row input[type=text]{flex:1 1 200px;width:auto}
+  .mat-row label{display:flex;flex-direction:column;margin:0;font-size:.75rem}
+  .mat-row input[type=number]{width:90px}
   #printOverlaySheet img{width:100%;height:auto;display:block}
 
   #fabNovaFoto{
@@ -230,16 +235,17 @@
     .print-header .ph-destaque-wrap{text-align:center}
     .print-header .ph-destaque strong{font-weight:800}
     .print-header .ph-sub{font-size:7.3pt; color:#333; text-align:center; line-height:1.1}
+    .print-header .titulo-detalhe{font-size:10.5pt; font-weight:800; letter-spacing:.3px; color:#000; text-align:center; margin-bottom:2px; line-height:1.1}
     .legenda{font-size:.65rem !important; margin:3px 0 6px !important}
 
-    #tabelaResultados{display:table !important; overflow:visible !important; white-space:normal !important}
-    #tabelaResultados thead{display:table-header-group !important}
-    #tabelaResultados tbody{display:table-row-group !important}
+    #tabelaResultados, .tbl-resumo{display:table !important; overflow:visible !important; white-space:normal !important}
+    #tabelaResultados thead, .tbl-resumo thead{display:table-header-group !important}
+    #tabelaResultados tbody, .tbl-resumo tbody{display:table-row-group !important}
     table.results{width:100% !important; table-layout:fixed !important}
-    #tabelaResultados th:nth-child(1), #tabelaResultados td:nth-child(1){width:8mm !important}
-    #tabelaResultados th:nth-child(2), #tabelaResultados td:nth-child(2){width:85mm !important}
+    .tbl-resumo th:nth-child(1), .tbl-resumo td:nth-child(1){width:8mm !important}
+    .tbl-resumo th:nth-child(2), .tbl-resumo td:nth-child(2){width:85mm !important}
     .assinatura-cell{width:50mm !important}
-    #tabelaResultados th:nth-child(4), #tabelaResultados td:nth-child(4){text-align:center !important}
+    .tbl-resumo th:nth-child(4), .tbl-resumo td:nth-child(4){text-align:center !important}
     table.results th{background:#f2f2f2 !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     table.results td, table.results th{
       border:.6pt solid #333 !important; padding:1px 6px !important; line-height:1.05 !important; font-size:7.6pt !important;
@@ -262,6 +268,14 @@
       width:30mm !important; position:static !important; text-align:left !important; font-size:6.2pt !important; white-space:normal !important; word-break:break-word !important;
     }
     #cardDetalhe{page-break-before:always}
+
+    body.print-all-mode header.app-header,
+    body.print-all-mode nav.tabs,
+    body.print-all-mode main,
+    body.print-all-mode #toastMsg{display:none !important}
+    body.print-all-mode #printAllSheet{display:block !important}
+    .pa-page{page-break-after:always; break-after:page}
+    .pa-page.pa-last{page-break-after:auto; break-after:auto}
 
     body.print-overlay-mode header.app-header,
     body.print-overlay-mode nav.tabs,
@@ -310,6 +324,12 @@
             <option value="20" selected>20</option>
             <option value="25">25</option>
             <option value="30">30</option>
+            <option value="35">35</option>
+            <option value="40">40</option>
+            <option value="45">45</option>
+            <option value="50">50</option>
+            <option value="60">60</option>
+            <option value="90">90</option>
           </select>
         </div>
         <div>
@@ -331,6 +351,17 @@
         <div><label>Bimestre / Avaliação</label><input type="text" id="metaBimestre" placeholder="Ex.: 3º Bimestre"></div>
         <div><label>Data</label><input type="text" id="metaData" placeholder="Ex.: 22/09/2026"></div>
       </div>
+    </div>
+
+    <div class="card no-print" id="cardMaterias">
+      <h2>Matérias da avaliação (resultados separados)</h2>
+      <p class="hint">Se a prova reúne várias matérias, informe a faixa de questões de cada uma. O app passa a calcular os acertos por matéria e a gerar resultado e detalhamento separados para cada uma — para entregar a cada professor/turma.</p>
+      <div id="listaMaterias"></div>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn btn-outline btn-sm" id="btnAddMateria">+ Adicionar matéria</button>
+        <button class="btn btn-gold btn-sm" id="btnPresetCN">⚡ Modelo: Ciências da Natureza 3ª série (40 questões, A–E)</button>
+      </div>
+      <div id="msgMaterias"></div>
     </div>
 
     <div class="card no-print" id="cardImportarGabarito">
@@ -442,12 +473,16 @@
       <div class="print-header" id="printHeader1"></div>
       <h2 id="resultadosTitulo">Resultados — Opção 1: lista simples (assinatura em branco, para assinar agora)</h2>
       <p class="hint" id="resultadosSub"></p>
+      <div class="toolbar no-print" id="visaoWrap" style="display:none;align-items:flex-end;gap:10px;margin-bottom:10px">
+        <div><label>Ver resultado por matéria</label><select id="selVisaoMateria"></select></div>
+        <button class="btn btn-primary" id="btnImprimirTodasMaterias">🖨️ Imprimir todas as matérias</button>
+      </div>
       <div class="toolbar no-print">
         <button class="btn btn-gold" id="btnExportCsv">⬇️ Exportar CSV</button>
         <button class="btn btn-outline" id="btnImprimir">🖨️ Imprimir esta lista</button>
         <button class="btn btn-danger" id="btnLimparResultados">Limpar todos os resultados</button>
       </div>
-      <table class="results" id="tabelaResultados">
+      <table class="results tbl-resumo" id="tabelaResultados">
         <thead>
           <tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th>Acertos</th><th class="no-print">%</th><th class="no-print">Ações</th></tr>
         </thead>
@@ -480,7 +515,7 @@
 
     <div class="card" id="cardDetalhe">
       <div class="print-header" id="printHeader2"></div>
-      <h2>Detalhamento — questões que cada aluno acertou e errou</h2>
+      <h2 id="detalheTitulo">Detalhamento — questões que cada aluno acertou e errou</h2>
       <p class="hint">Pensada para imprimir no verso da folha de resultados (frente = nomes e notas, verso = este detalhamento). Não tem coluna de assinatura — só nome, acertos e erros. No navegador, escolha impressão <strong>frente e verso</strong> ou imprima as duas folhas separadamente e junte-as.</p>
       <div class="legenda">
         <span><i style="background:var(--green-bg);border:1px solid var(--green)"></i> Acertou (mostra a letra marcada)</span>
@@ -497,6 +532,7 @@
   </section>
 
   <section id="printOverlaySheet"><img id="printOverlayImg" alt="Folha com notas sobrepostas"></section>
+  <div id="printAllSheet"></div>
 
 </main>
 
@@ -513,7 +549,8 @@ function defaultState(){
     gabarito: Array(20).fill(null),
     alunos: [],
     resultados: [], // { id, alunoIndex, alunoNome, respostas:[], acertos, nota, criadoEm }
-    modelosGabarito: [] // { id, nome, criadoEm, config, meta, gabarito }
+    materias: [], // [{ id, nome, inicio, fim }] faixas de questões por matéria
+    modelosGabarito: [] // { id, nome, criadoEm, config, meta, gabarito, materias }
   };
 }
 
@@ -579,7 +616,35 @@ function renderGabaritoGrid(){
   }
 }
 
+function esc(t){
+  return String(t == null ? '' : t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function garantirOpcao(selectId, valor){
+  const sel = document.getElementById(selectId);
+  const v = String(valor);
+  if(Array.from(sel.options).some(o=>o.value===v)) return;
+  const o = document.createElement('option');
+  o.value = v; o.textContent = v;
+  const maior = Array.from(sel.options).find(x=>parseInt(x.value,10) > parseInt(v,10));
+  sel.insertBefore(o, maior || null);
+}
+
+function aplicarConfig(n, alt){
+  garantirOpcao('cfgNumQuestoes', n);
+  const novoGabarito = Array(n).fill(null);
+  for(let i=0;i<Math.min(n, state.gabarito.length);i++) novoGabarito[i] = state.gabarito[i];
+  state.config.numQuestoes = n;
+  state.config.numAlternativas = alt;
+  state.gabarito = novoGabarito;
+  document.getElementById('cfgNumQuestoes').value = n;
+  document.getElementById('cfgNumAlternativas').value = alt;
+  saveState();
+  renderGabaritoGrid();
+}
+
 function loadMetaFields(){
+  garantirOpcao('cfgNumQuestoes', state.config.numQuestoes);
   document.getElementById('cfgNumQuestoes').value = state.config.numQuestoes;
   document.getElementById('cfgNumAlternativas').value = state.config.numAlternativas;
   document.getElementById('metaEscola').value = state.meta.escola;
@@ -607,12 +672,10 @@ Object.keys(metaFieldMap).forEach(elId=>{
 document.getElementById('btnAplicarConfig').addEventListener('click', ()=>{
   const n = parseInt(document.getElementById('cfgNumQuestoes').value,10);
   const alt = parseInt(document.getElementById('cfgNumAlternativas').value,10);
-  const novoGabarito = Array(n).fill(null);
-  for(let i=0;i<Math.min(n, state.gabarito.length);i++) novoGabarito[i] = state.gabarito[i];
-  state.config.numQuestoes = n;
-  state.config.numAlternativas = alt;
-  state.gabarito = novoGabarito;
-  renderGabaritoGrid();
+  aplicarConfig(n, alt);
+  renderMaterias();
+  renderVisaoSelector();
+  renderResultados();
   showMsg('msgGabarito', 'Configuração aplicada. Não esqueça de marcar/salvar o gabarito.', 'info');
 });
 
@@ -643,12 +706,10 @@ document.getElementById('btnLimparGabarito').addEventListener('click', ()=>{
 ============================================================ */
 async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf){
   const headers = buildApiHeaders();
-  const n = state.config.numQuestoes;
-  const opts = LETTERS.slice(0, state.config.numAlternativas).join(', ');
   const prompt = 'Este documento é o GABARITO OFICIAL de uma avaliação escolar — ou seja, a lista das respostas CORRETAS de cada questão (não é a prova de um aluno, é a folha de correção do professor). '+
-    'Pode estar em formato de tabela, lista numerada (ex.: "1-A", "2. C") ou texto corrido. '+
-    'Extraia a alternativa correta de cada questão numerada, considerando que as alternativas possíveis são: '+opts+'. '+
-    'Se o documento tiver mais ou menos questões que '+n+', extraia todas as que conseguir identificar mesmo assim. '+
+    'Ele pode estar em formato de tabela, lista numerada (ex.: "1-A", "2. C"), texto corrido OU como um cartão-resposta em que a alternativa correta de cada questão é a bolha PREENCHIDA (pintada de escuro) da linha — nesse caso ignore a coluna "Professor" e note que o cartão pode ter várias colunas de questões (ex.: 1–20 à esquerda e 21–40 à direita). '+
+    'Extraia a alternativa correta de cada questão numerada. As alternativas podem ir de A até E. '+
+    'Extraia TODAS as questões que conseguir identificar, mesmo que sejam muitas. '+
     'Se não conseguir determinar a resposta de alguma questão com segurança, retorne null para ela — não invente. '+
     'Responda ESTRITAMENTE em JSON válido, sem texto antes ou depois, sem blocos de código, no formato exato: '+
     '{"respostas": {"1": "A", "2": "C", "3": null}}';
@@ -659,7 +720,7 @@ async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf){
 
   const body = {
     model: "claude-sonnet-4-6",
-    max_tokens: 2000,
+    max_tokens: 3000,
     messages: [{ role:'user', content:[ contentBlock, { type:'text', text: prompt } ] }]
   };
 
@@ -678,17 +739,34 @@ async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf){
 }
 
 async function loadGabaritoFile(file){
-  if(state.config.numQuestoes < 1){ return; }
   showMsg('gabImportMsg', 'Lendo gabarito com IA, aguarde…', 'info');
   try{
     const base64 = await fileToBase64(file);
     const isPdf = file.type === 'application/pdf';
     const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
     const respostas = await callGabaritoExtractionAPI(base64, mediaType, isPdf);
+
+    // Detecta quantas questões / alternativas o documento tem e, se for diferente da
+    // configuração atual, oferece ajustar automaticamente.
+    const nums = Object.keys(respostas).map(k=>parseInt(k,10)).filter(k=>!isNaN(k));
+    const maxEncontrado = nums.length ? Math.max.apply(null, nums) : 0;
+    const usaE = Object.keys(respostas).some(k=>String(respostas[k]||'').toUpperCase()==='E');
+    let nNovo = state.config.numQuestoes;
+    let altNova = state.config.numAlternativas;
+    if(maxEncontrado > nNovo && maxEncontrado <= 200) nNovo = maxEncontrado;
+    if(usaE && altNova < 5) altNova = 5;
+    if(nNovo !== state.config.numQuestoes || altNova !== state.config.numAlternativas){
+      const txt = 'O documento parece ter ' + maxEncontrado + ' questões' + (usaE ? ' com alternativas A–E' : '') +
+        '. Ajustar a configuração para ' + nNovo + ' questões, alternativas ' + (altNova===5 ? 'A–E' : 'A–D') + '?';
+      if(confirm(txt)){
+        aplicarConfig(nNovo, altNova);
+        renderMaterias(); renderVisaoSelector(); renderResultados();
+      }
+    }
+
     const opts = LETTERS.slice(0, state.config.numAlternativas);
     const n = state.config.numQuestoes;
     let preenchidas = 0;
-    let foraDoIntervalo = 0;
     for(let i=1;i<=n;i++){
       const v = respostas[String(i)];
       if(v && opts.includes(String(v).toUpperCase())){
@@ -696,12 +774,10 @@ async function loadGabaritoFile(file){
         preenchidas++;
       }
     }
-    const maxEncontrado = Object.keys(respostas).map(k=>parseInt(k,10)).filter(k=>!isNaN(k)).reduce((a,b)=>Math.max(a,b), 0);
-    if(maxEncontrado > n) foraDoIntervalo = maxEncontrado - n;
     renderGabaritoGrid();
-    let msg = `✔ ${preenchidas} de ${n} questões preenchidas automaticamente. Revise a grade abaixo antes de salvar.`;
-    if(foraDoIntervalo > 0){
-      msg += ` O documento parece ter ${maxEncontrado} questões — se for o caso, ajuste "Nº de questões" no topo e importe de novo.`;
+    let msg = `✔ ${preenchidas} de ${n} questões preenchidas automaticamente. Revise a grade abaixo (compare com o papel) antes de salvar.`;
+    if(maxEncontrado > n){
+      msg += ` O documento parece ter ${maxEncontrado} questões — ajuste "Nº de questões" no topo e importe de novo.`;
     }
     showMsg('gabImportMsg', msg, preenchidas < n ? 'error' : 'ok');
   }catch(err){
@@ -742,7 +818,7 @@ function renderModelos(){
     const info = document.createElement('div');
     const data = new Date(modelo.criadoEm);
     const dataTxt = isNaN(data) ? '' : data.toLocaleDateString('pt-BR');
-    info.innerHTML = `<strong>${modelo.nome}</strong><br><span style="color:var(--gray-600);font-size:.8rem">${modelo.config.numQuestoes} questões · salvo em ${dataTxt}</span>`;
+    info.innerHTML = `<strong>${modelo.nome}</strong><br><span style="color:var(--gray-600);font-size:.8rem">${modelo.config.numQuestoes} questões${(modelo.materias && modelo.materias.length) ? ' · ' + modelo.materias.length + ' matérias' : ''} · salvo em ${dataTxt}</span>`;
     row.appendChild(info);
     const btns = document.createElement('div');
     btns.style.cssText = 'display:flex;gap:6px';
@@ -754,9 +830,13 @@ function renderModelos(){
       state.config = JSON.parse(JSON.stringify(modelo.config));
       state.meta = JSON.parse(JSON.stringify(modelo.meta));
       state.gabarito = JSON.parse(JSON.stringify(modelo.gabarito));
+      state.materias = JSON.parse(JSON.stringify(modelo.materias || []));
       saveState();
       loadMetaFields();
       renderGabaritoGrid();
+      renderMaterias();
+      renderVisaoSelector();
+      renderResultados();
       showMsg('msgModelo', `Modelo "${modelo.nome}" carregado ✔`, 'ok');
     });
     const btnRemover = document.createElement('button');
@@ -784,7 +864,8 @@ document.getElementById('btnSalvarModelo').addEventListener('click', ()=>{
     criadoEm: new Date().toISOString(),
     config: JSON.parse(JSON.stringify(state.config)),
     meta: JSON.parse(JSON.stringify(state.meta)),
-    gabarito: JSON.parse(JSON.stringify(state.gabarito))
+    gabarito: JSON.parse(JSON.stringify(state.gabarito)),
+    materias: JSON.parse(JSON.stringify(state.materias))
   };
   state.modelosGabarito.push(modelo);
   saveState();
@@ -1396,38 +1477,114 @@ function notaClasse(nota){
   return 'nota-baixa';
 }
 
-function renderPrintHeader(){
-  const escolaHtml = state.meta.escola ? `<div class="ph-escola">${state.meta.escola}</div>` : '';
+function classePorPct(acertos, total){
+  const pct = total ? (acertos/total)*100 : 0;
+  return pct>=50 ? 'nota-alta' : 'nota-baixa';
+}
+
+/* ---------- matérias (faixas de questões) ---------- */
+let visaoMateria = 'geral';
+
+function faixaDaVisao(id){
+  const n = state.config.numQuestoes;
+  const m = (id && id!=='geral') ? state.materias.find(x=>x.id===id) : null;
+  if(!m) return { id:'geral', nome:'', inicio:1, fim:n };
+  const a = Math.min(m.inicio, m.fim), b = Math.max(m.inicio, m.fim);
+  return { id:m.id, nome:m.nome, inicio:Math.max(1,a), fim:Math.min(n,b) };
+}
+
+function contarAcertos(respostas, inicio, fim){
+  let acertos = 0, total = 0;
+  for(let q=inicio; q<=fim; q++){
+    total++;
+    const marcada = respostas[q-1], correta = state.gabarito[q-1];
+    if(marcada && correta && marcada===correta) acertos++;
+  }
+  return { acertos, total };
+}
+
+/* ---------- cabeçalho impresso ---------- */
+function metaHeaderHtml(){
+  const escolaHtml = state.meta.escola ? `<div class="ph-escola">${esc(state.meta.escola)}</div>` : '';
 
   const destaquePartes = [];
-  if(state.meta.turma) destaquePartes.push('Turma: <strong>' + state.meta.turma + '</strong>');
-  if(state.meta.professor) destaquePartes.push('Professor(a): <strong>' + state.meta.professor + '</strong>');
+  if(state.meta.turma) destaquePartes.push('Turma: <strong>' + esc(state.meta.turma) + '</strong>');
+  if(state.meta.professor) destaquePartes.push('Professor(a): <strong>' + esc(state.meta.professor) + '</strong>');
   const destaqueHtml = destaquePartes.length
     ? `<div class="ph-destaque-wrap"><div class="ph-destaque">${destaquePartes.join(' &nbsp;·&nbsp; ')}</div></div>`
     : '';
 
   const subPartes = [];
-  if(state.meta.disciplina) subPartes.push(state.meta.disciplina);
-  if(state.meta.bimestre) subPartes.push(state.meta.bimestre);
-  if(state.meta.data) subPartes.push('Data: ' + state.meta.data);
+  if(state.meta.disciplina) subPartes.push(esc(state.meta.disciplina));
+  if(state.meta.bimestre) subPartes.push(esc(state.meta.bimestre));
+  if(state.meta.data) subPartes.push('Data: ' + esc(state.meta.data));
   const subHtml = subPartes.length ? `<div class="ph-sub">${subPartes.join(' &nbsp;·&nbsp; ')}</div>` : '';
 
-  const metaHtml = escolaHtml + destaqueHtml + subHtml;
-  const tituloHtml = '<div class="titulo-simulado">RESULTADOS DO SIMULADO</div>';
+  return escolaHtml + destaqueHtml + subHtml;
+}
+
+function tituloResultadosHtml(nomeMateria){
+  return '<div class="titulo-simulado">RESULTADOS DO SIMULADO' + (nomeMateria ? ' — ' + esc(nomeMateria).toUpperCase() : '') + '</div>';
+}
+
+function tituloDetalheHtml(nomeMateria){
+  return nomeMateria ? '<div class="titulo-detalhe">DETALHAMENTO — ' + esc(nomeMateria).toUpperCase() + '</div>' : '';
+}
+
+function renderPrintHeader(){
+  const f = faixaDaVisao(visaoMateria);
+  const meta = metaHeaderHtml();
   const h1 = document.getElementById('printHeader1');
   const h2 = document.getElementById('printHeader2');
-  if(h1) h1.innerHTML = tituloHtml + metaHtml;
-  if(h2) h2.innerHTML = metaHtml;
+  if(h1) h1.innerHTML = tituloResultadosHtml(f.nome) + meta;
+  if(h2) h2.innerHTML = tituloDetalheHtml(f.nome) + meta;
 }
+
+/* ---------- seletor de visão por matéria ---------- */
+function renderVisaoSelector(){
+  const wrap = document.getElementById('visaoWrap');
+  const sel = document.getElementById('selVisaoMateria');
+  if(!state.materias.length){
+    visaoMateria = 'geral';
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+  sel.innerHTML = '';
+  const og = document.createElement('option');
+  og.value = 'geral';
+  og.textContent = 'Geral — todas as questões (1–' + state.config.numQuestoes + ')';
+  sel.appendChild(og);
+  state.materias.forEach(m=>{
+    const f = faixaDaVisao(m.id);
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = (m.nome || 'Matéria sem nome') + ' (questões ' + f.inicio + '–' + f.fim + ')';
+    sel.appendChild(o);
+  });
+  if(visaoMateria !== 'geral' && !state.materias.some(m=>m.id===visaoMateria)) visaoMateria = 'geral';
+  sel.value = visaoMateria;
+}
+
+document.getElementById('selVisaoMateria').addEventListener('change', e=>{
+  visaoMateria = e.target.value;
+  renderResultados();
+});
 
 function renderResultados(){
   renderPrintHeader();
+  const f = faixaDaVisao(visaoMateria);
   const sub = [];
   if(state.meta.disciplina) sub.push(state.meta.disciplina);
   if(state.meta.turma) sub.push('Turma ' + state.meta.turma);
   if(state.meta.bimestre) sub.push(state.meta.bimestre);
   if(state.meta.data) sub.push(state.meta.data);
   document.getElementById('resultadosSub').textContent = sub.join(' · ');
+  document.getElementById('resultadosTitulo').textContent = f.nome
+    ? ('Resultados — ' + f.nome + ' (questões ' + f.inicio + '–' + f.fim + ')')
+    : 'Resultados — Opção 1: lista simples (assinatura em branco, para assinar agora)';
+  const dt = document.getElementById('detalheTitulo');
+  if(dt) dt.textContent = f.nome ? ('Detalhamento — ' + f.nome) : 'Detalhamento — questões que cada aluno acertou e errou';
 
   const tbody = document.querySelector('#tabelaResultados tbody');
   tbody.innerHTML = '';
@@ -1442,12 +1599,13 @@ function renderResultados(){
     const tr = document.createElement('tr');
     const assinaturaHtml = signatureCrops[idx] ? `<img src="${signatureCrops[idx]}" alt="assinatura">` : '';
     if(r){
-      const pct = Math.round((r.acertos/r.total)*100);
+      const c = contarAcertos(r.respostas, f.inicio, f.fim);
+      const pct = c.total ? Math.round((c.acertos/c.total)*100) : 0;
       tr.innerHTML = `
         <td>${idx+1}</td>
-        <td>${nome}</td>
+        <td>${esc(nome)}</td>
         <td class="assinatura-cell">${assinaturaHtml}</td>
-        <td class="nota-cell ${notaClasse(r.nota)}">${r.acertos}/${r.total}</td>
+        <td class="nota-cell ${classePorPct(c.acertos, c.total)}">${c.acertos}/${c.total}</td>
         <td class="no-print">${pct}%</td>
         <td class="no-print acoes-cell"></td>
       `;
@@ -1464,7 +1622,7 @@ function renderResultados(){
     }else{
       tr.innerHTML = `
         <td>${idx+1}</td>
-        <td>${nome}</td>
+        <td>${esc(nome)}</td>
         <td class="assinatura-cell">${assinaturaHtml}</td>
         <td colspan="2" style="color:var(--gray-400)">ainda não corrigido</td>
         <td class="no-print acoes-cell"></td>
@@ -1476,43 +1634,192 @@ function renderResultados(){
   renderDetalhe();
 }
 
-function renderDetalhe(){
-  const n = state.config.numQuestoes;
-  const thead = document.querySelector('#tabelaDetalhe thead');
-  const tbody = document.querySelector('#tabelaDetalhe tbody');
+/* ---------- detalhamento (por faixa de questões) ---------- */
+function detalheHtml(f){
+  const cols = Math.max(1, f.fim - f.inicio + 1);
+  let head = '<tr><th>Aluno</th>';
+  for(let q=f.inicio; q<=f.fim; q++) head += `<th>${q}</th>`;
+  head += '</tr>';
+  let gab = '<tr><th style="background:var(--gold);color:var(--navy)">Gabarito</th>';
+  for(let q=f.inicio; q<=f.fim; q++) gab += `<th style="background:var(--gold);color:var(--navy)">${state.gabarito[q-1] || '-'}</th>`;
+  gab += '</tr>';
 
-  let headRow = '<tr><th>Aluno</th>';
-  for(let i=1;i<=n;i++) headRow += `<th>${i}</th>`;
-  headRow += '</tr>';
-  let gabRow = '<tr><th style="background:var(--gold);color:var(--navy)">Gabarito</th>';
-  for(let i=0;i<n;i++) gabRow += `<th style="background:var(--gold);color:var(--navy)">${state.gabarito[i] || '-'}</th>`;
-  gabRow += '</tr>';
-  thead.innerHTML = headRow + gabRow;
-
-  tbody.innerHTML = '';
+  let body = '';
   state.alunos.forEach((nome, idx)=>{
     const r = state.resultados.find(res=>res.alunoIndex===idx);
-    const tr = document.createElement('tr');
-    let rowHtml = `<td>${nome}</td>`;
+    let row = `<tr><td>${esc(nome)}</td>`;
     if(r){
-      for(let i=0;i<n;i++){
-        const marcada = r.respostas[i];
-        const correta = state.gabarito[i];
+      for(let q=f.inicio; q<=f.fim; q++){
+        const marcada = r.respostas[q-1];
+        const correta = state.gabarito[q-1];
         if(!marcada){
-          rowHtml += `<td style="background:var(--gray-100);color:var(--gray-400)">–</td>`;
+          row += `<td style="background:var(--gray-100);color:var(--gray-400)">–</td>`;
         }else if(marcada===correta){
-          rowHtml += `<td style="background:var(--green-bg);color:var(--green);font-weight:700">${marcada}</td>`;
+          row += `<td style="background:var(--green-bg);color:var(--green);font-weight:700">${marcada}</td>`;
         }else{
-          rowHtml += `<td style="background:var(--red-bg);color:var(--red);font-weight:700">${marcada}</td>`;
+          row += `<td style="background:var(--red-bg);color:var(--red);font-weight:700">${marcada}</td>`;
         }
       }
     }else{
-      rowHtml += `<td colspan="${n}" style="color:var(--gray-400)">não corrigido</td>`;
+      row += `<td colspan="${cols}" style="color:var(--gray-400)">não corrigido</td>`;
     }
-    tr.innerHTML = rowHtml;
-    tbody.appendChild(tr);
+    row += '</tr>';
+    body += row;
   });
+  return { head: head + gab, body };
 }
+
+function renderDetalhe(){
+  const f = faixaDaVisao(visaoMateria);
+  const d = detalheHtml(f);
+  document.querySelector('#tabelaDetalhe thead').innerHTML = d.head;
+  document.querySelector('#tabelaDetalhe tbody').innerHTML = d.body;
+}
+
+/* ---------- imprimir todas as matérias (1 resultado + 1 detalhamento por matéria) ---------- */
+function tabelaResumoHtml(f){
+  let rows = '';
+  state.alunos.forEach((nome, idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex===idx);
+    const assin = signatureCrops[idx] ? `<img src="${signatureCrops[idx]}" alt="">` : '';
+    if(r){
+      const c = contarAcertos(r.respostas, f.inicio, f.fim);
+      rows += `<tr><td>${idx+1}</td><td>${esc(nome)}</td><td class="assinatura-cell">${assin}</td><td class="nota-cell ${classePorPct(c.acertos, c.total)}">${c.acertos}/${c.total}</td></tr>`;
+    }else{
+      rows += `<tr><td>${idx+1}</td><td>${esc(nome)}</td><td class="assinatura-cell">${assin}</td><td style="color:#999">—</td></tr>`;
+    }
+  });
+  return `<table class="results tbl-resumo"><thead><tr><th>Nº</th><th>Aluno</th><th>Assinatura</th><th>Acertos</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function imprimirTodasMaterias(){
+  if(!state.materias.length){ alert('Defina as matérias na aba "Gabarito Correto" primeiro.'); return; }
+  if(!state.resultados.length){ alert('Ainda não há provas corrigidas para imprimir.'); return; }
+  const meta = metaHeaderHtml();
+  let html = '';
+  state.materias.forEach((m, i)=>{
+    const f = faixaDaVisao(m.id);
+    const d = detalheHtml(f);
+    const ultimo = i === state.materias.length - 1;
+    html += `<div class="pa-page"><div class="print-header">${tituloResultadosHtml(f.nome)}${meta}</div>${tabelaResumoHtml(f)}</div>`;
+    html += `<div class="pa-page${ultimo ? ' pa-last' : ''}"><div class="print-header">${tituloDetalheHtml(f.nome)}${meta}</div><table class="results detalhe-table"><thead>${d.head}</thead><tbody>${d.body}</tbody></table></div>`;
+  });
+  document.getElementById('printAllSheet').innerHTML = html;
+  document.body.classList.add('print-all-mode');
+  setTimeout(()=> window.print(), 100);
+}
+document.getElementById('btnImprimirTodasMaterias').addEventListener('click', imprimirTodasMaterias);
+window.addEventListener('afterprint', ()=>{ document.body.classList.remove('print-all-mode'); });
+
+/* ---------- configuração das matérias (aba Gabarito) ---------- */
+function novoIdMateria(){ return 'mat' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function statusMateriasHtml(){
+  if(!state.materias.length) return '';
+  const n = state.config.numQuestoes;
+  const cont = Array(n+1).fill(0);
+  state.materias.forEach(m=>{
+    const a = Math.max(1, Math.min(m.inicio, m.fim)), b = Math.min(n, Math.max(m.inicio, m.fim));
+    for(let q=a; q<=b; q++) cont[q]++;
+  });
+  const sem = [], dup = [];
+  for(let q=1; q<=n; q++){ if(cont[q]===0) sem.push(q); if(cont[q]>1) dup.push(q); }
+  const fmt = arr => arr.length > 12 ? arr.slice(0,12).join(', ') + '…' : arr.join(', ');
+  if(!sem.length && !dup.length){
+    return `<div class="msg ok">✔ As ${state.materias.length} matérias cobrem as ${n} questões, sem sobreposição.</div>`;
+  }
+  let t = '';
+  if(sem.length) t += 'Questões sem matéria: ' + fmt(sem) + '. ';
+  if(dup.length) t += 'Questões em mais de uma matéria: ' + fmt(dup) + '.';
+  return `<div class="msg error">${t}</div>`;
+}
+
+function atualizarAposMaterias(){
+  saveState();
+  document.getElementById('msgMaterias').innerHTML = statusMateriasHtml();
+  renderVisaoSelector();
+  renderResultados();
+}
+
+function renderMaterias(){
+  const wrap = document.getElementById('listaMaterias');
+  wrap.innerHTML = '';
+  if(!state.materias.length){
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.style.margin = '0 0 6px';
+    p.textContent = 'Nenhuma matéria definida — os resultados são gerais (todas as questões juntas).';
+    wrap.appendChild(p);
+  }
+  state.materias.forEach(m=>{
+    const row = document.createElement('div');
+    row.className = 'mat-row';
+
+    const inNome = document.createElement('input');
+    inNome.type = 'text'; inNome.placeholder = 'Matéria (ex.: Biologia)'; inNome.value = m.nome;
+
+    const lblIni = document.createElement('label');
+    lblIni.appendChild(document.createTextNode('da questão'));
+    const inIni = document.createElement('input');
+    inIni.type = 'number'; inIni.min = 1; inIni.value = m.inicio;
+    lblIni.appendChild(inIni);
+
+    const lblFim = document.createElement('label');
+    lblFim.appendChild(document.createTextNode('até a questão'));
+    const inFim = document.createElement('input');
+    inFim.type = 'number'; inFim.min = 1; inFim.value = m.fim;
+    lblFim.appendChild(inFim);
+
+    const del = document.createElement('button');
+    del.className = 'btn btn-danger btn-sm';
+    del.textContent = '✕';
+    del.title = 'Remover matéria';
+
+    const atualizar = ()=>{
+      m.nome = inNome.value.trim();
+      m.inicio = parseInt(inIni.value,10) || 1;
+      m.fim = parseInt(inFim.value,10) || m.inicio;
+      atualizarAposMaterias();
+    };
+    inNome.addEventListener('change', atualizar);
+    inIni.addEventListener('change', atualizar);
+    inFim.addEventListener('change', atualizar);
+    del.addEventListener('click', ()=>{
+      state.materias = state.materias.filter(x=>x.id!==m.id);
+      renderMaterias();
+      atualizarAposMaterias();
+    });
+
+    row.appendChild(inNome); row.appendChild(lblIni); row.appendChild(lblFim); row.appendChild(del);
+    wrap.appendChild(row);
+  });
+  document.getElementById('msgMaterias').innerHTML = statusMateriasHtml();
+}
+
+document.getElementById('btnAddMateria').addEventListener('click', ()=>{
+  const n = state.config.numQuestoes;
+  const ultimoFim = state.materias.reduce((mx,m)=>Math.max(mx, m.fim), 0);
+  const ini = Math.min(n, ultimoFim + 1);
+  state.materias.push({ id: novoIdMateria(), nome: '', inicio: ini, fim: n });
+  renderMaterias();
+  atualizarAposMaterias();
+});
+
+document.getElementById('btnPresetCN').addEventListener('click', ()=>{
+  let aviso = 'Configurar 40 questões, alternativas A–E, e as matérias Biologia (1–14), Física (15–27) e Química (28–40)?';
+  if(state.resultados.length) aviso += '\n\nAtenção: já existem ' + state.resultados.length + ' correções lançadas com a configuração anterior. Recomenda-se limpá-las na aba Resultados antes de corrigir esta prova.';
+  if(!confirm(aviso)) return;
+  aplicarConfig(40, 5);
+  state.materias = [
+    { id: novoIdMateria(), nome: 'Biologia', inicio: 1,  fim: 14 },
+    { id: novoIdMateria(), nome: 'Física',   inicio: 15, fim: 27 },
+    { id: novoIdMateria(), nome: 'Química',  inicio: 28, fim: 40 }
+  ];
+  visaoMateria = 'geral';
+  renderMaterias();
+  atualizarAposMaterias();
+  showMsg('msgGabarito', 'Modelo aplicado: 40 questões, A–E, 3 matérias. Agora marque (ou importe por foto) o gabarito correto.', 'ok');
+});
 
 /* ============================================================
    OPÇÃO 2 — SOBREPOR NOTAS NA LISTA JÁ ASSINADA
@@ -1630,8 +1937,10 @@ function drawOverlayPreview(canvas, scale){
     const positions = computeGradePositions();
     positions.forEach((pos, idx)=>{
       const r = state.resultados.find(res=>res.alunoIndex===idx);
-      const texto = r ? (r.acertos + '/' + r.total) : '—';
-      const cor = r ? corDaNota(r.acertos, r.total) : '#999';
+      const fv = faixaDaVisao(visaoMateria);
+      const c = r ? contarAcertos(r.respostas, fv.inicio, fv.fim) : null;
+      const texto = c ? (c.acertos + '/' + c.total) : '—';
+      const cor = c ? corDaNota(c.acertos, c.total) : '#999';
       drawGradeText(ctx, texto, pos.x*scale, pos.y*scale, cor, Math.max(16*scale, 10));
     });
   }
@@ -1646,8 +1955,10 @@ function buildFinalOverlayCanvas(){
   const baseFont = Math.max(overlayState.naturalWidth/55, 18);
   computeGradePositions().forEach((pos, idx)=>{
     const r = state.resultados.find(res=>res.alunoIndex===idx);
-    const texto = r ? (r.acertos + '/' + r.total) : '—';
-    const cor = r ? corDaNota(r.acertos, r.total) : '#999';
+    const fv = faixaDaVisao(visaoMateria);
+    const c = r ? contarAcertos(r.respostas, fv.inicio, fv.fim) : null;
+    const texto = c ? (c.acertos + '/' + c.total) : '—';
+    const cor = c ? corDaNota(c.acertos, c.total) : '#999';
     drawGradeText(ctx, texto, pos.x, pos.y, cor, baseFont);
   });
   return c;
@@ -1927,14 +2238,24 @@ sigFileInput.addEventListener('change', e=>{
 
 document.getElementById('btnExportCsv').addEventListener('click', ()=>{
 
-  let csv = 'Numero;Aluno;Acertos;Total;Percentual\n';
+  const geral = faixaDaVisao('geral');
+  let csv = 'Numero;Aluno;Acertos;Total;Percentual';
+  state.materias.forEach(m=>{ csv += ';' + m.nome + ' (acertos);' + m.nome + ' (total)'; });
+  csv += '\n';
   state.alunos.forEach((nome,idx)=>{
     const r = state.resultados.find(res=>res.alunoIndex===idx);
     if(r){
-      const pct = Math.round((r.acertos/r.total)*100);
-      csv += `${idx+1};${nome};${r.acertos};${r.total};${pct}%\n`;
+      const g = contarAcertos(r.respostas, geral.inicio, geral.fim);
+      const pct = g.total ? Math.round((g.acertos/g.total)*100) : 0;
+      csv += `${idx+1};${nome};${g.acertos};${g.total};${pct}%`;
+      state.materias.forEach(m=>{
+        const fm = faixaDaVisao(m.id);
+        const c = contarAcertos(r.respostas, fm.inicio, fm.fim);
+        csv += `;${c.acertos};${c.total}`;
+      });
+      csv += '\n';
     }else{
-      csv += `${idx+1};${nome};;;\n`;
+      csv += `${idx+1};${nome};;;` + state.materias.map(()=>';;').join('') + '\n';
     }
   });
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
@@ -1961,6 +2282,8 @@ function init(){
   loadMetaFields();
   renderGabaritoGrid();
   renderRoster();
+  renderMaterias();
+  renderVisaoSelector();
   renderResultados();
   renderModelos();
   initPWA();
