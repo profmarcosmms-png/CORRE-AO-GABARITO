@@ -479,11 +479,11 @@
       <p class="hint" id="resultadosSub"></p>
       <div class="toolbar no-print" id="visaoWrap" style="display:none;align-items:flex-end;gap:10px;margin-bottom:10px">
         <div><label>Ver resultado por matéria</label><select id="selVisaoMateria"></select></div>
-        <button class="btn btn-primary" id="btnImprimirTodasMaterias">🖨️ Imprimir todas as matérias</button>
+        <button class="btn btn-primary" id="btnImprimirTodasMaterias">🖨️ Imprimir / Baixar PDF — todas as matérias</button>
       </div>
       <div class="toolbar no-print">
         <button class="btn btn-gold" id="btnExportCsv">⬇️ Exportar CSV</button>
-        <button class="btn btn-outline" id="btnImprimir">🖨️ Imprimir esta lista</button>
+        <button class="btn btn-outline" id="btnImprimir">⬇️ Baixar PDF / Imprimir esta lista</button>
         <button class="btn btn-danger" id="btnLimparResultados">Limpar todos os resultados</button>
       </div>
       <table class="results tbl-resumo" id="tabelaResultados">
@@ -969,7 +969,7 @@ function bestMatches(nomeLido, roster, topN=3){
 /* ============================================================
    TAB 3: UPLOAD + IA
 ============================================================ */
-let pendingItems = []; // {id, file, previewUrl, status, alunoIndex, respostas[]}
+let pendingItems = []; // {id, file, previewUrl, status, alunoIndex, alunoIndex2, respostas[]}
 let pendingCounter = 0;
 
 const dropzone = document.getElementById('dropzone');
@@ -998,7 +998,7 @@ function handleFiles(fileList){
   Array.from(fileList).forEach(file=>{
     const id = 'p'+(++pendingCounter);
     const previewUrl = URL.createObjectURL(file);
-    pendingItems.push({ id, file, previewUrl, status:'pendente', alunoIndex:null, respostas: Array(state.config.numQuestoes).fill(null), nomeLido:'' });
+    pendingItems.push({ id, file, previewUrl, status:'pendente', alunoIndex:null, alunoIndex2:null, respostas: Array(state.config.numQuestoes).fill(null), nomeLido:'', nomesLidos:[] });
   });
   renderPending();
   fileInput.value = '';
@@ -1012,13 +1012,15 @@ function renderPending(){
   pendingItems.forEach(item=>{
     if(item.status==='ok' && item.collapsed){
       const nomeAluno = item.alunoIndex!==null ? state.alunos[item.alunoIndex] : '(sem aluno)';
+      const nomeAluno2 = item.alunoIndex2!==null ? state.alunos[item.alunoIndex2] : '';
+      const nomesTxt = nomeAluno2 ? (nomeAluno + ' & ' + nomeAluno2) : nomeAluno;
       const resultado = state.resultados.find(r=>r.alunoIndex===item.alunoIndex);
       const notaTxt = resultado ? (resultado.acertos + '/' + resultado.total + ' acertos') : '';
       const compact = document.createElement('div');
       compact.className = 'card';
       compact.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap';
       const info = document.createElement('div');
-      info.innerHTML = `<span class="status-tag status-ok">✔ Corrigido</span> <strong style="margin-left:8px">${nomeAluno}</strong> <span style="color:var(--gray-600);margin-left:8px">${notaTxt}</span>`;
+      info.innerHTML = `<span class="status-tag status-ok">✔ Corrigido</span> <strong style="margin-left:8px">${nomesTxt}</strong> <span style="color:var(--gray-600);margin-left:8px">${notaTxt}</span>`;
       compact.appendChild(info);
       const editBtn = document.createElement('button');
       editBtn.className='btn btn-outline btn-sm';
@@ -1067,38 +1069,69 @@ function renderPending(){
     }
 
     if(item.status==='revisar' || item.status==='ok'){
-      // nome
+      // nome(s) — suporta prova em dupla (2 alunos para a mesma folha de respostas)
+      const nomeLidoTxt = item.nomesLidos && item.nomesLidos.length ? item.nomesLidos.join(' e ') : (item.nomeLido || '(não identificado)');
       const nomeBlock = document.createElement('div');
       const lbl = document.createElement('label');
-      lbl.textContent = 'Nome lido: ' + (item.nomeLido || '(não identificado)');
+      lbl.textContent = 'Nome(s) lido(s): ' + nomeLidoTxt;
       nomeBlock.appendChild(lbl);
-      const chipsWrap = document.createElement('div');
-      chipsWrap.className='name-match-list';
-      const matches = bestMatches(item.nomeLido || '', state.alunos, 4);
-      matches.forEach(m=>{
-        const chip = document.createElement('div');
-        chip.className='match-chip' + (item.alunoIndex===m.idx ? ' chosen':'');
-        chip.textContent = m.nome;
-        chip.addEventListener('click', ()=>{ item.alunoIndex = m.idx; renderPending(); });
-        chipsWrap.appendChild(chip);
-      });
-      nomeBlock.appendChild(chipsWrap);
 
-      const sel = document.createElement('select');
-      const optNull = document.createElement('option');
-      optNull.value=''; optNull.textContent='-- selecionar aluno manualmente --';
-      sel.appendChild(optNull);
-      state.alunos.forEach((nome,idx)=>{
-        const o = document.createElement('option');
-        o.value = idx; o.textContent = nome;
-        if(item.alunoIndex===idx) o.selected = true;
-        sel.appendChild(o);
-      });
-      sel.addEventListener('change', ()=>{
-        item.alunoIndex = sel.value==='' ? null : parseInt(sel.value,10);
+      function montarSeletorAluno(valorAtual, nomeLidoRef, onChange){
+        const campoWrap = document.createElement('div');
+        const chipsWrap = document.createElement('div');
+        chipsWrap.className='name-match-list';
+        const matches = bestMatches(nomeLidoRef || '', state.alunos, 4);
+        matches.forEach(m=>{
+          const chip = document.createElement('div');
+          chip.className='match-chip' + (valorAtual===m.idx ? ' chosen':'');
+          chip.textContent = m.nome;
+          chip.addEventListener('click', ()=> onChange(m.idx));
+          chipsWrap.appendChild(chip);
+        });
+        campoWrap.appendChild(chipsWrap);
+        const sel = document.createElement('select');
+        const optNull = document.createElement('option');
+        optNull.value=''; optNull.textContent='-- selecionar aluno manualmente --';
+        sel.appendChild(optNull);
+        state.alunos.forEach((nome,idx)=>{
+          const o = document.createElement('option');
+          o.value = idx; o.textContent = nome;
+          if(valorAtual===idx) o.selected = true;
+          sel.appendChild(o);
+        });
+        sel.addEventListener('change', ()=> onChange(sel.value==='' ? null : parseInt(sel.value,10)));
+        campoWrap.appendChild(sel);
+        return campoWrap;
+      }
+
+      const aluno1Label = document.createElement('label');
+      aluno1Label.style.cssText = 'font-size:.78rem;font-weight:600;color:var(--gray-600);margin-top:6px;display:block';
+      aluno1Label.textContent = 'Aluno 1';
+      nomeBlock.appendChild(aluno1Label);
+      nomeBlock.appendChild(montarSeletorAluno(item.alunoIndex, item.nomesLidos && item.nomesLidos[0], (v)=>{ item.alunoIndex = v; renderPending(); }));
+
+      const duplaWrap = document.createElement('div');
+      duplaWrap.style.marginTop = '8px';
+      const duplaToggle = document.createElement('label');
+      duplaToggle.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600;color:var(--gray-600);cursor:pointer';
+      const duplaCheck = document.createElement('input');
+      duplaCheck.type = 'checkbox';
+      duplaCheck.checked = item.alunoIndex2 !== null;
+      duplaToggle.appendChild(duplaCheck);
+      duplaToggle.appendChild(document.createTextNode('Prova em dupla (creditar a um 2º aluno também)'));
+      duplaWrap.appendChild(duplaToggle);
+      if(duplaCheck.checked){
+        const aluno2Label = document.createElement('label');
+        aluno2Label.style.cssText = 'font-size:.78rem;font-weight:600;color:var(--gray-600);margin-top:6px;display:block';
+        aluno2Label.textContent = 'Aluno 2';
+        duplaWrap.appendChild(aluno2Label);
+        duplaWrap.appendChild(montarSeletorAluno(item.alunoIndex2, item.nomesLidos && item.nomesLidos[1], (v)=>{ item.alunoIndex2 = v; renderPending(); }));
+      }
+      duplaCheck.addEventListener('change', ()=>{
+        item.alunoIndex2 = duplaCheck.checked ? (item.alunoIndex2 !== null ? item.alunoIndex2 : null) : null;
         renderPending();
       });
-      nomeBlock.appendChild(sel);
+      nomeBlock.appendChild(duplaWrap);
       right.appendChild(nomeBlock);
 
       // respostas grid
@@ -1143,7 +1176,12 @@ function renderPending(){
         confirmBtn.addEventListener('click', ()=>{
           if(item.alunoIndex===null){ alert('Selecione o aluno correspondente antes de confirmar.'); return; }
           addResultado(item.alunoIndex, item.respostas);
-          const nomeConfirmado = state.alunos[item.alunoIndex];
+          let nomeConfirmado = state.alunos[item.alunoIndex];
+          if(item.alunoIndex2 !== null){
+            if(item.alunoIndex2 === item.alunoIndex){ alert('O Aluno 2 não pode ser o mesmo que o Aluno 1.'); return; }
+            addResultado(item.alunoIndex2, item.respostas);
+            nomeConfirmado += ' & ' + state.alunos[item.alunoIndex2];
+          }
           item.status='ok';
           item.collapsed=true;
           renderPending();
@@ -1172,7 +1210,9 @@ async function lerItemComIA(item){
   const base64 = await fileToBase64(item.file);
   const mediaType = item.file.type || 'image/jpeg';
   const result = await callVisionAPI(base64, mediaType);
-  item.nomeLido = result.nome || '';
+  const nomesArr = Array.isArray(result.nomes) ? result.nomes.filter(Boolean) : (result.nome ? [result.nome] : []);
+  item.nomesLidos = nomesArr;
+  item.nomeLido = nomesArr[0] || '';
   const n = state.config.numQuestoes;
   const opts = LETTERS.slice(0, state.config.numAlternativas);
   const respostas = Array(n).fill(null);
@@ -1192,13 +1232,18 @@ async function analyzeItem(id){
   renderPending();
   try{
     await lerItemComIA(item);
-    const matches = bestMatches(item.nomeLido || '', state.alunos, 1);
+    const matches = bestMatches(item.nomesLidos[0] || '', state.alunos, 1);
     if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
+    if(item.nomesLidos[1]){
+      const matches2 = bestMatches(item.nomesLidos[1], state.alunos, 1);
+      if(matches2.length && matches2[0].score > -3 && matches2[0].idx !== item.alunoIndex) item.alunoIndex2 = matches2[0].idx;
+    }
     item.status='revisar';
   }catch(err){
     console.error(err);
     item.status='revisar';
     item.nomeLido='';
+    item.nomesLidos=[];
     alert('Não foi possível analisar a imagem automaticamente (' + err.message + '). Marque as respostas manualmente abaixo.');
   }
   renderPending();
@@ -1221,16 +1266,30 @@ async function processarTudoAutomatico(){
     btn.textContent = `⏳ Processando (${okCount+revisarCount+erroCount+1}/${alvos.length})…`;
     try{
       await lerItemComIA(item);
-      const matches = bestMatches(item.nomeLido || '', state.alunos, 1);
+      const matches = bestMatches(item.nomesLidos[0] || '', state.alunos, 1);
       const matchConfiavel = matches.length && matches[0].common >= 1;
-      if(matchConfiavel){
+      let match2Confiavel = true, idx2 = null;
+      if(item.nomesLidos[1]){
+        const matches2 = bestMatches(item.nomesLidos[1], state.alunos, 1);
+        match2Confiavel = matches2.length && matches2[0].common >= 1 && matches2[0].idx !== (matches[0] && matches[0].idx);
+        if(match2Confiavel) idx2 = matches2[0].idx;
+      }
+      if(matchConfiavel && match2Confiavel){
         item.alunoIndex = matches[0].idx;
         addResultado(item.alunoIndex, item.respostas);
+        if(idx2 !== null){
+          item.alunoIndex2 = idx2;
+          addResultado(item.alunoIndex2, item.respostas);
+        }
         item.status = 'ok';
         item.collapsed = true;
         okCount++;
       }else{
         if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
+        if(item.nomesLidos[1]){
+          const matches2b = bestMatches(item.nomesLidos[1], state.alunos, 1);
+          if(matches2b.length && matches2b[0].score > -3 && matches2b[0].idx !== item.alunoIndex) item.alunoIndex2 = matches2b[0].idx;
+        }
         item.status = 'revisar';
         revisarCount++;
       }
@@ -1284,10 +1343,10 @@ async function callVisionAPI(base64Image, mediaType){
   const opts = LETTERS.slice(0, state.config.numAlternativas).join(', ');
   const prompt = 'Esta é a foto de um cartão-resposta (gabarito) de uma avaliação escolar brasileira, com '+n+' questões numeradas de 1 a '+n+'. '+
     'Cada questão tem círculos com as letras '+opts+', e o aluno preenche (pinta) o círculo da alternativa escolhida. '+
-    'Tarefa: 1) leia o nome do estudante escrito no cabeçalho do documento, se houver; 2) para CADA questão de 1 a '+n+', identifique qual círculo está preenchido/marcado. '+
+    'Tarefa: 1) leia o(s) nome(s) do(s) estudante(s) escrito(s) no cabeçalho do documento, se houver — a prova pode ser individual (1 nome) ou em dupla (2 nomes, às vezes separados por "e", "/", "&", vírgula, ou em linhas diferentes); 2) para CADA questão de 1 a '+n+', identifique qual círculo está preenchido/marcado. '+
     'Se uma questão não tiver nenhuma marcação clara, ou tiver mais de uma marcação, retorne null para essa questão (não invente uma resposta). '+
-    'Responda ESTRITAMENTE em JSON válido, sem nenhum texto antes ou depois, sem blocos de código, no formato exato: '+
-    '{"nome": "string ou null", "respostas": {"1": "A", "2": null, "3": "C"}}';
+    'Responda ESTRITAMENTE em JSON válido, sem nenhum texto antes ou depois, sem blocos de código, no formato exato (o array "nomes" tem 1 item se for prova individual, ou 2 itens se for dupla): '+
+    '{"nomes": ["string"], "respostas": {"1": "A", "2": null, "3": "C"}}';
 
   const body = {
     model: "claude-sonnet-4-6",
@@ -1396,6 +1455,18 @@ document.getElementById('btnManual').addEventListener('click', ()=>{
   renderManualForm();
 });
 
+function montarSelectAluno(placeholder){
+  const sel = document.createElement('select');
+  sel.style.marginBottom='10px';
+  const optNull = document.createElement('option');
+  optNull.value=''; optNull.textContent=placeholder;
+  sel.appendChild(optNull);
+  state.alunos.forEach((nome,idx)=>{
+    const o=document.createElement('option'); o.value=idx; o.textContent=nome; sel.appendChild(o);
+  });
+  return sel;
+}
+
 function renderManualForm(){
   const area = document.getElementById('manualArea');
   area.innerHTML = '';
@@ -1403,15 +1474,31 @@ function renderManualForm(){
   box.className='pending-card';
   box.style.gridTemplateColumns='1fr';
 
-  const sel = document.createElement('select');
-  sel.style.marginBottom='10px';
-  const optNull = document.createElement('option');
-  optNull.value=''; optNull.textContent='-- selecionar aluno --';
-  sel.appendChild(optNull);
-  state.alunos.forEach((nome,idx)=>{
-    const o=document.createElement('option'); o.value=idx; o.textContent=nome; sel.appendChild(o);
-  });
+  const lblA1 = document.createElement('label');
+  lblA1.style.cssText = 'font-size:.78rem;font-weight:600;color:var(--gray-600)';
+  lblA1.textContent = 'Aluno 1';
+  box.appendChild(lblA1);
+  const sel = montarSelectAluno('-- selecionar aluno --');
   box.appendChild(sel);
+
+  const duplaToggle = document.createElement('label');
+  duplaToggle.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600;color:var(--gray-600);cursor:pointer;margin-bottom:10px';
+  const duplaCheck = document.createElement('input');
+  duplaCheck.type = 'checkbox';
+  duplaToggle.appendChild(duplaCheck);
+  duplaToggle.appendChild(document.createTextNode('Prova em dupla (creditar a um 2º aluno também)'));
+  box.appendChild(duplaToggle);
+
+  const sel2Wrap = document.createElement('div');
+  sel2Wrap.style.display = 'none';
+  const lblA2 = document.createElement('label');
+  lblA2.style.cssText = 'font-size:.78rem;font-weight:600;color:var(--gray-600)';
+  lblA2.textContent = 'Aluno 2';
+  sel2Wrap.appendChild(lblA2);
+  const sel2 = montarSelectAluno('-- selecionar aluno --');
+  sel2Wrap.appendChild(sel2);
+  box.appendChild(sel2Wrap);
+  duplaCheck.addEventListener('change', ()=>{ sel2Wrap.style.display = duplaCheck.checked ? 'block' : 'none'; });
 
   const respostas = Array(state.config.numQuestoes).fill(null);
   const grid = document.createElement('div');
@@ -1444,8 +1531,14 @@ function renderManualForm(){
   confirmBtn.textContent='✔ Adicionar aos resultados';
   confirmBtn.addEventListener('click', ()=>{
     if(sel.value===''){ alert('Selecione o aluno.'); return; }
-    const nomeConfirmado = state.alunos[parseInt(sel.value,10)];
+    if(duplaCheck.checked && sel2.value==='' ){ alert('Selecione o 2º aluno da dupla, ou desmarque a opção de dupla.'); return; }
+    if(duplaCheck.checked && sel2.value===sel.value){ alert('O Aluno 2 não pode ser o mesmo que o Aluno 1.'); return; }
+    let nomeConfirmado = state.alunos[parseInt(sel.value,10)];
     addResultado(parseInt(sel.value,10), respostas);
+    if(duplaCheck.checked){
+      addResultado(parseInt(sel2.value,10), respostas);
+      nomeConfirmado += ' & ' + state.alunos[parseInt(sel2.value,10)];
+    }
     showToast('✔ ' + nomeConfirmado + ' corrigido! Pronto para o próximo.');
     renderManualForm();
   });
@@ -1727,7 +1820,10 @@ function imprimirTodasMaterias(){
   document.body.classList.add('print-all-mode');
   setTimeout(()=> window.print(), 100);
 }
-document.getElementById('btnImprimirTodasMaterias').addEventListener('click', imprimirTodasMaterias);
+document.getElementById('btnImprimirTodasMaterias').addEventListener('click', ()=>{
+  showToast('Na janela que abrir, escolha "Salvar como PDF" no destino/impressora para baixar o arquivo.');
+  imprimirTodasMaterias();
+});
 window.addEventListener('afterprint', ()=>{ document.body.classList.remove('print-all-mode'); });
 
 /* ---------- configuração das matérias (aba Gabarito) ---------- */
@@ -2285,7 +2381,10 @@ document.getElementById('btnExportCsv').addEventListener('click', ()=>{
   URL.revokeObjectURL(url);
 });
 
-document.getElementById('btnImprimir').addEventListener('click', ()=> window.print());
+document.getElementById('btnImprimir').addEventListener('click', ()=>{
+  showToast('Na janela que abrir, escolha "Salvar como PDF" no destino/impressora para baixar o arquivo.');
+  setTimeout(()=> window.print(), 400);
+});
 
 document.getElementById('btnLimparResultados').addEventListener('click', ()=>{
   if(!confirm('Remover TODOS os resultados salvos? Esta ação não pode ser desfeita.')) return;
