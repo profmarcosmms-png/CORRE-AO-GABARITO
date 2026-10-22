@@ -1,4 +1,4 @@
-const CACHE_NAME = 'corretor-gabaritos-v4';
+const CACHE_NAME = 'corretor-gabaritos-v5';
 const APP_SHELL = [
   './index.html',
   './index.html?src=pwa',

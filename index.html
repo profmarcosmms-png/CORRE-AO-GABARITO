@@ -305,6 +305,20 @@
   </div>
 </header>
 
+<div class="card no-print" id="turmaBar" style="max-width:1100px;margin:14px auto 0;padding:12px 16px">
+  <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+    <div style="min-width:200px;flex:1">
+      <label style="font-weight:700">Turma ativa (a lista e as correções abaixo pertencem só a ela)</label>
+      <select id="selTurma"></select>
+    </div>
+    <button class="btn btn-outline btn-sm" id="btnNovaTurma">＋ Nova turma</button>
+    <button class="btn btn-outline btn-sm" id="btnRenomearTurma">✎ Renomear</button>
+    <button class="btn btn-outline btn-sm" id="btnExcluirTurma">🗑 Excluir turma</button>
+    <button class="btn btn-gold btn-sm" id="btnNovaAvaliacao" title="Apaga as correções de todas as turmas e o gabarito, mantendo as listas de alunos">🆕 Nova avaliação</button>
+  </div>
+  <div id="turmaStatus" style="font-size:.82rem;color:var(--gray-600);margin-top:8px"></div>
+</div>
+
 <nav class="tabs">
   <button class="tab-btn active" data-tab="tab-gabarito"><span class="n">1</span>Gabarito Correto</button>
   <button class="tab-btn" data-tab="tab-turma"><span class="n">2</span>Lista de Alunos</button>
@@ -382,6 +396,7 @@
     <div class="card">
       <h2>Marque o gabarito correto</h2>
       <p class="hint">Clique na alternativa correta de cada questão.</p>
+      <div id="avisoGabarito"></div>
       <div class="qgrid" id="gabaritoGrid"></div>
       <div class="toolbar no-print" style="margin-top:16px">
         <button class="btn btn-primary" id="btnSalvarGabarito">💾 Salvar gabarito</button>
@@ -419,8 +434,8 @@
       </div>
     </div>
     <div class="card">
-      <h2>Lista de alunos da turma</h2>
-      <p class="hint">Nomes extraídos aparecem aqui para revisão — ou cole/edite manualmente, um nome por linha, na ordem da chamada.</p>
+      <h2>Lista de alunos — <span id="rosterTurmaNome"></span></h2>
+      <p class="hint">Esta lista pertence <strong>somente à turma ativa</strong> (barra no topo). Para outra turma, crie uma <strong>＋ Nova turma</strong> — as listas nunca se misturam. Ao importar por foto/PDF, a lista do editor é <strong>substituída</strong> (não soma). Nomes repetidos e numeração (1., 2., 01-) são removidos automaticamente.</p>
       <textarea id="rosterInput" placeholder="ANA JÚLIA RODRIGUES FELIX&#10;ANA VITÓRIA ALVES LOREDO DA SILVA&#10;BÁRBARA SOPHIA MELO SOUZA&#10;..."></textarea>
       <div class="toolbar no-print" style="margin-top:12px">
         <button class="btn btn-primary" id="btnSalvarRoster">💾 Salvar lista</button>
@@ -484,7 +499,7 @@
       <div class="toolbar no-print">
         <button class="btn btn-gold" id="btnExportCsv">⬇️ Exportar CSV</button>
         <button class="btn btn-outline" id="btnImprimir">⬇️ Baixar PDF / Imprimir esta lista</button>
-        <button class="btn btn-danger" id="btnLimparResultados">Limpar todos os resultados</button>
+        <button class="btn btn-danger" id="btnLimparResultados">Limpar resultados desta turma</button>
       </div>
       <table class="results tbl-resumo" id="tabelaResultados">
         <thead>
@@ -546,13 +561,18 @@
 ============================================================ */
 const LS_KEY = 'corretorGabaritos_v1';
 
+function novoIdTurma(){ return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
 function defaultState(){
+  const t = { id: novoIdTurma(), nome: 'Turma 1', alunos: [], resultados: [] };
   return {
     config: { numQuestoes: 20, numAlternativas: 4 },
-    meta: { escola:'', professor:'', disciplina:'', turma:'', bimestre:'', data:'' },
+    meta: { escola:'', professor:'', disciplina:'', turma:'Turma 1', bimestre:'', data:'' },
     gabarito: Array(20).fill(null),
-    alunos: [],
-    resultados: [], // { id, alunoIndex, alunoNome, respostas:[], acertos, nota, criadoEm }
+    turmas: [t],          // cada turma tem a SUA lista de alunos e os SEUS resultados
+    turmaAtiva: t.id,
+    alunos: t.alunos,     // atalho: lista da turma ativa
+    resultados: t.resultados, // atalho: resultados da turma ativa { id, alunoIndex, alunoNome, respostas:[], acertos, nota, criadoEm }
     materias: [], // [{ id, nome, inicio, fim }] faixas de questões por matéria
     modelosGabarito: [] // { id, nome, criadoEm, config, meta, gabarito, materias }
   };
@@ -565,12 +585,46 @@ function loadState(){
     const raw = localStorage.getItem(LS_KEY);
     if(!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    return Object.assign(defaultState(), parsed);
+    const s = Object.assign(defaultState(), parsed);
+    // Migração: versões antigas tinham uma lista única -> vira a primeira turma.
+    if(!Array.isArray(parsed.turmas) || !parsed.turmas.length){
+      const nome = (s.meta && s.meta.turma) ? s.meta.turma : 'Turma 1';
+      s.turmas = [{ id: novoIdTurma(), nome, alunos: Array.isArray(parsed.alunos)?parsed.alunos:[], resultados: Array.isArray(parsed.resultados)?parsed.resultados:[] }];
+      s.turmaAtiva = s.turmas[0].id;
+    }
+    s.turmas.forEach(t=>{ if(!Array.isArray(t.alunos)) t.alunos=[]; if(!Array.isArray(t.resultados)) t.resultados=[]; });
+    const ativa = s.turmas.find(t=>t.id===s.turmaAtiva) || s.turmas[0];
+    s.turmaAtiva = ativa.id;
+    s.alunos = ativa.alunos;
+    s.resultados = ativa.resultados;
+    if(!s.meta.turma) s.meta.turma = ativa.nome;
+    return s;
   }catch(e){ return defaultState(); }
 }
 
+function turmaAtivaObj(){
+  return state.turmas.find(t=>t.id===state.turmaAtiva) || state.turmas[0];
+}
+
+// A turma ativa é a "fonte da verdade": sempre copia a lista e os resultados atuais para ela antes de gravar.
+function sincronizarTurmaAtiva(){
+  const t = turmaAtivaObj();
+  if(t){ t.alunos = state.alunos; t.resultados = state.resultados; }
+}
+
 function saveState(){
-  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  sincronizarTurmaAtiva();
+  try{
+    // grava sem os atalhos duplicados (alunos/resultados) — a verdade está em state.turmas
+    const copia = Object.assign({}, state);
+    delete copia.alunos; delete copia.resultados;
+    localStorage.setItem(LS_KEY, JSON.stringify(copia));
+  }catch(e){}
+}
+
+function totalResultadosTodasTurmas(){
+  sincronizarTurmaAtiva();
+  return state.turmas.reduce((s,t)=>s + t.resultados.length, 0);
 }
 
 const LETTERS = ['A','B','C','D','E'];
@@ -593,6 +647,13 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 ============================================================ */
 function renderGabaritoGrid(){
   const grid = document.getElementById('gabaritoGrid');
+  const av = document.getElementById('avisoGabarito');
+  if(av){
+    const tot = totalResultadosTodasTurmas();
+    av.innerHTML = tot
+      ? `<div class="msg error">⚠️ Esta avaliação já tem <strong>${tot}</strong> correção(ões) lançada(s). Alterar o gabarito recalcula as notas de todos. Para corrigir <strong>outra prova</strong>, use o botão <strong>🆕 Nova avaliação</strong> (no topo) em vez de trocar o gabarito.</div>`
+      : '';
+  }
   grid.innerHTML = '';
   const n = state.config.numQuestoes;
   const opts = LETTERS.slice(0, state.config.numAlternativas);
@@ -611,7 +672,9 @@ function renderGabaritoGrid(){
       b.textContent = letter;
       b.addEventListener('click', ()=>{
         state.gabarito[i] = letter;
+        saveState();            // grava a cada clique: não perde mais a marcação
         renderGabaritoGrid();
+        renderTurmaStatus();
       });
       optsWrap.appendChild(b);
     });
@@ -667,8 +730,9 @@ const metaFieldMap = {
 };
 Object.keys(metaFieldMap).forEach(elId=>{
   document.getElementById(elId).addEventListener('change', ()=>{
-    state.meta[metaFieldMap[elId]] = document.getElementById(elId).value.trim();
-    saveState();
+    const v = document.getElementById(elId).value.trim();
+    if(elId === 'metaTurma'){ aplicarMetaTurma(v); }
+    else { state.meta[metaFieldMap[elId]] = v; saveState(); }
     renderPrintHeader();
   });
 });
@@ -676,6 +740,12 @@ Object.keys(metaFieldMap).forEach(elId=>{
 document.getElementById('btnAplicarConfig').addEventListener('click', ()=>{
   const n = parseInt(document.getElementById('cfgNumQuestoes').value,10);
   const alt = parseInt(document.getElementById('cfgNumAlternativas').value,10);
+  const mudou = (n !== state.config.numQuestoes || alt !== state.config.numAlternativas);
+  if(mudou && !confirmarTrocaDeAvaliacao('Mudar o nº de questões/alternativas')){
+    document.getElementById('cfgNumQuestoes').value = state.config.numQuestoes;
+    document.getElementById('cfgNumAlternativas').value = state.config.numAlternativas;
+    return;
+  }
   aplicarConfig(n, alt);
   renderMaterias();
   renderVisaoSelector();
@@ -687,7 +757,7 @@ document.getElementById('btnSalvarGabarito').addEventListener('click', ()=>{
   state.meta.escola = document.getElementById('metaEscola').value.trim();
   state.meta.professor = document.getElementById('metaProfessor').value.trim();
   state.meta.disciplina = document.getElementById('metaDisciplina').value.trim();
-  state.meta.turma = document.getElementById('metaTurma').value.trim();
+  aplicarMetaTurma(document.getElementById('metaTurma').value.trim());
   state.meta.bimestre = document.getElementById('metaBimestre').value.trim();
   state.meta.data = document.getElementById('metaData').value.trim();
   const faltando = state.gabarito.some(v=>!v);
@@ -702,7 +772,9 @@ document.getElementById('btnSalvarGabarito').addEventListener('click', ()=>{
 document.getElementById('btnLimparGabarito').addEventListener('click', ()=>{
   if(!confirm('Limpar todas as marcações do gabarito?')) return;
   state.gabarito = Array(state.config.numQuestoes).fill(null);
+  saveState();
   renderGabaritoGrid();
+  renderTurmaStatus();
 });
 
 /* ============================================================
@@ -762,7 +834,7 @@ async function loadGabaritoFile(file){
     if(nNovo !== state.config.numQuestoes || altNova !== state.config.numAlternativas){
       const txt = 'O documento parece ter ' + maxEncontrado + ' questões' + (usaE ? ' com alternativas A–E' : '') +
         '. Ajustar a configuração para ' + nNovo + ' questões, alternativas ' + (altNova===5 ? 'A–E' : 'A–D') + '?';
-      if(confirm(txt)){
+      if(confirm(txt) && confirmarTrocaDeAvaliacao('Ajustar a configuração')){
         aplicarConfig(nNovo, altNova);
         renderMaterias(); renderVisaoSelector(); renderResultados();
       }
@@ -778,7 +850,9 @@ async function loadGabaritoFile(file){
         preenchidas++;
       }
     }
+    saveState();
     renderGabaritoGrid();
+    renderTurmaStatus();
     let msg = `✔ ${preenchidas} de ${n} questões preenchidas automaticamente. Revise a grade abaixo (compare com o papel) antes de salvar.`;
     if(maxEncontrado > n){
       msg += ` O documento parece ter ${maxEncontrado} questões — ajuste "Nº de questões" no topo e importe de novo.`;
@@ -830,9 +904,11 @@ function renderModelos(){
     btnCarregar.className = 'btn btn-outline btn-sm';
     btnCarregar.textContent = '📂 Carregar';
     btnCarregar.addEventListener('click', ()=>{
-      if(!confirm(`Carregar o modelo "${modelo.nome}"? Isso vai substituir o gabarito, a configuração e os campos do cabeçalho atuais (a lista de alunos e os resultados não são afetados).`)) return;
+      if(!confirm(`Carregar o modelo "${modelo.nome}"? Isso vai substituir o gabarito, a configuração e os campos do cabeçalho atuais (as listas de alunos das turmas não são afetadas).`)) return;
+      if(!confirmarTrocaDeAvaliacao('Carregar outro modelo de gabarito')) return;
       state.config = JSON.parse(JSON.stringify(modelo.config));
       state.meta = JSON.parse(JSON.stringify(modelo.meta));
+      state.meta.turma = turmaAtivaObj().nome;   // a turma é a da barra superior, não a do modelo
       state.gabarito = JSON.parse(JSON.stringify(modelo.gabarito));
       state.materias = JSON.parse(JSON.stringify(modelo.materias || []));
       saveState();
@@ -905,6 +981,8 @@ document.getElementById('fabNovaFoto').addEventListener('click', ()=>{
    TAB 2: TURMA
 ============================================================ */
 function renderRoster(){
+  const rn = document.getElementById('rosterTurmaNome');
+  if(rn) rn.textContent = turmaAtivaObj().nome;
   document.getElementById('rosterInput').value = state.alunos.join('\n');
   const list = document.getElementById('rosterList');
   list.innerHTML = '';
@@ -916,21 +994,246 @@ function renderRoster(){
   document.getElementById('rosterCount').textContent = state.alunos.length;
 }
 
+// Remove numeração ("1.", "02 -"), espaços duplos e nomes repetidos, mantendo a ordem.
+function limparListaNomes(linhas){
+  const vistos = new Set(); const lista = []; let dup = 0;
+  linhas.forEach(l=>{
+    let n = String(l).replace(/\t/g,' ').trim();
+    n = n.replace(/^\s*\d{1,3}\s*[\.\-\)–:]+\s*/,'').replace(/^\s*\d{1,3}\s+(?=[^\d\s])/,'');
+    n = n.replace(/\s+/g,' ').trim();
+    if(!n) return;
+    const k = normalize(n);
+    if(vistos.has(k)){ dup++; return; }
+    vistos.add(k); lista.push(n);
+  });
+  return { lista, dup };
+}
+
+// Relaciona o índice ANTIGO de cada aluno com o NOVO (por nome; ou pela mesma posição, se foi só correção de grafia).
+function remapearIndices(antigos, novos){
+  const mapa = Array(antigos.length).fill(-1);
+  const usado = new Set();
+  const idxNovo = new Map();
+  novos.forEach((n,i)=>idxNovo.set(normalize(n), i));
+  antigos.forEach((n,i)=>{
+    const j = idxNovo.get(normalize(n));
+    if(j !== undefined && !usado.has(j)){ mapa[i] = j; usado.add(j); }
+  });
+  if(novos.length === antigos.length){
+    antigos.forEach((n,i)=>{ if(mapa[i] === -1 && !usado.has(i)){ mapa[i] = i; usado.add(i); } });
+  }
+  return mapa;
+}
+
 document.getElementById('btnSalvarRoster').addEventListener('click', ()=>{
-  const lines = document.getElementById('rosterInput').value
-    .split('\n').map(l=>l.trim()).filter(l=>l.length>0);
-  state.alunos = lines;
+  const { lista, dup } = limparListaNomes(document.getElementById('rosterInput').value.split('\n'));
+  const antigos = state.alunos.slice();
+  const mapa = remapearIndices(antigos, lista);
+  const perdidos = state.resultados.filter(r=> mapa[r.alunoIndex] === undefined || mapa[r.alunoIndex] < 0);
+  if(perdidos.length && !confirm(perdidos.length + ' aluno(s) com correção lançada não estão mais na lista e terão a correção removida. Continuar?')) return;
+
+  // resultados: reaponta para os novos índices (sem duplicar)
+  const porIdx = new Map();
+  state.resultados.forEach(r=>{
+    const j = mapa[r.alunoIndex];
+    if(j === undefined || j < 0) return;
+    const ant = porIdx.get(j);
+    if(!ant || (r.criadoEm||'') > (ant.criadoEm||'')) porIdx.set(j, Object.assign({}, r, { alunoIndex:j, alunoNome: lista[j] }));
+  });
+  state.resultados = Array.from(porIdx.values());
+  // fotos ainda em revisão: reaponta também
+  pendingItems.forEach(it=>{
+    ['alunoIndex','alunoIndex2'].forEach(k=>{
+      if(it[k] !== null && it[k] !== undefined){ const j = mapa[it[k]]; it[k] = (j === undefined || j < 0) ? null : j; }
+    });
+    it.confirmados = (it.confirmados||[]).map(i=>mapa[i]).filter(j=>j !== undefined && j >= 0);
+  });
+  const mudou = antigos.length !== lista.length || antigos.some((n,i)=>n !== lista[i]);
+  if(mudou) signatureCrops = [];
+  state.alunos = lista;
   saveState();
   renderRoster();
-  showMsg('msgRoster', `Lista salva com ${lines.length} aluno(s) ✔`, 'ok');
+  renderTurmaBar();
+  renderResultados();
+  renderPending();
+  let msg = `Lista da turma "${turmaAtivaObj().nome}" salva com ${lista.length} aluno(s) ✔`;
+  if(dup) msg += ` (${dup} nome(s) repetido(s) removido(s))`;
+  if(perdidos.length) msg += ` · ${perdidos.length} correção(ões) removida(s)`;
+  showMsg('msgRoster', msg, 'ok');
 });
 
 document.getElementById('btnLimparRoster').addEventListener('click', ()=>{
-  if(!confirm('Limpar a lista de alunos?')) return;
+  const c = state.resultados.length;
+  if(!confirm('Limpar a lista de alunos da turma "' + turmaAtivaObj().nome + '"?' + (c ? ('\n\nAs ' + c + ' correção(ões) já lançada(s) desta turma também serão apagadas.') : ''))) return;
   state.alunos = [];
+  state.resultados = [];
+  signatureCrops = [];
+  pendingItems.forEach(it=>{ it.alunoIndex = null; it.alunoIndex2 = null; it.confirmados = []; });
   saveState();
   renderRoster();
+  renderTurmaBar();
+  renderResultados();
+  renderPending();
 });
+
+/* ============================================================
+   TURMAS (cada turma tem lista e correções próprias)
+============================================================ */
+function itensPendentesAbertos(){ return pendingItems.filter(p=>p.status !== 'ok').length; }
+
+function descartarPendentes(){
+  pendingItems.forEach(p=>{ try{ URL.revokeObjectURL(p.previewUrl); }catch(e){} });
+  pendingItems = [];
+  renderPending();
+  const ma = document.getElementById('manualArea'); if(ma) ma.innerHTML = '';
+}
+
+function resetarContextoDaTurma(){
+  descartarPendentes();
+  signatureCrops = [];
+  sigCalibState = { naturalCanvas:null, naturalWidth:0, naturalHeight:0, points:[], calibrated:false };
+  overlayState = { naturalCanvas:null, naturalWidth:0, naturalHeight:0, points:[], calibrated:false, offsetX:0, offsetY:0 };
+}
+
+function atualizarTudo(){
+  loadMetaFields();
+  renderGabaritoGrid();
+  renderRoster();
+  renderMaterias();
+  renderVisaoSelector();
+  renderResultados();
+  renderTurmaBar();
+  renderSignatureCalibUI();
+  renderOverlayUI();
+}
+
+function renderTurmaBar(){
+  sincronizarTurmaAtiva();
+  const sel = document.getElementById('selTurma');
+  sel.innerHTML = '';
+  state.turmas.forEach(t=>{
+    const o = document.createElement('option');
+    o.value = t.id;
+    o.textContent = t.nome + ' — ' + t.alunos.length + ' aluno(s), ' + t.resultados.length + ' corrigido(s)';
+    if(t.id === state.turmaAtiva) o.selected = true;
+    sel.appendChild(o);
+  });
+  renderTurmaStatus();
+}
+
+function renderTurmaStatus(){
+  const el = document.getElementById('turmaStatus');
+  if(!el) return;
+  const n = state.alunos.length, c = state.resultados.length;
+  const faltamGab = state.gabarito.filter(v=>!v).length;
+  let t = `Turma <strong>${esc(turmaAtivaObj().nome)}</strong>: ${n} aluno(s) · ${c} corrigido(s)` + (n ? ` · faltam ${Math.max(0,n-c)}` : ' · <span style="color:var(--red)">lista de alunos vazia</span>');
+  t += ' · Gabarito: ' + (faltamGab ? `<span style="color:var(--red)">INCOMPLETO (${faltamGab} sem marcação)</span>` : '<span style="color:var(--green)">completo ✔</span>');
+  el.innerHTML = t;
+}
+
+function ativarTurma(t){
+  state.turmaAtiva = t.id;
+  state.alunos = t.alunos;
+  state.resultados = t.resultados;
+  state.meta.turma = t.nome;
+  resetarContextoDaTurma();
+  saveState();
+  atualizarTudo();
+}
+
+function irParaAba(id){
+  const b = document.querySelector('.tab-btn[data-tab="' + id + '"]');
+  if(b) b.click();
+}
+
+document.getElementById('selTurma').addEventListener('change', e=>{
+  const novo = state.turmas.find(t=>t.id === e.target.value);
+  if(!novo) return;
+  if(itensPendentesAbertos() && !confirm('Há fotos ainda não confirmadas. Ao trocar de turma elas serão descartadas. Continuar?')){
+    renderTurmaBar(); return;
+  }
+  saveState();
+  ativarTurma(novo);
+  showToast('Turma "' + novo.nome + '" ativa.');
+});
+
+document.getElementById('btnNovaTurma').addEventListener('click', ()=>{
+  const nome = prompt('Nome da nova turma (ex.: 9º D):', 'Turma ' + (state.turmas.length + 1));
+  if(nome === null || !nome.trim()) return;
+  if(itensPendentesAbertos() && !confirm('Há fotos ainda não confirmadas. Ao criar/trocar de turma elas serão descartadas. Continuar?')) return;
+  saveState();
+  const t = { id: novoIdTurma(), nome: nome.trim(), alunos: [], resultados: [] };
+  state.turmas.push(t);
+  ativarTurma(t);
+  irParaAba('tab-turma');
+  showToast('Turma "' + t.nome + '" criada, vazia. Importe ou digite a lista de alunos.');
+});
+
+document.getElementById('btnRenomearTurma').addEventListener('click', ()=>{
+  const t = turmaAtivaObj();
+  const nome = prompt('Novo nome da turma:', t.nome);
+  if(nome === null || !nome.trim()) return;
+  aplicarMetaTurma(nome.trim());
+  document.getElementById('metaTurma').value = state.meta.turma;
+  renderRoster(); renderResultados();
+});
+
+document.getElementById('btnExcluirTurma').addEventListener('click', ()=>{
+  const t = turmaAtivaObj();
+  const info = t.alunos.length + ' aluno(s) e ' + t.resultados.length + ' correção(ões)';
+  if(!confirm('Excluir a turma "' + t.nome + '" (' + info + ')? Esta ação não pode ser desfeita.')) return;
+  saveState();
+  if(state.turmas.length === 1){
+    t.alunos = []; t.resultados = [];
+    ativarTurma(t);
+    return;
+  }
+  state.turmas = state.turmas.filter(x=>x.id !== t.id);
+  ativarTurma(state.turmas[0]);
+  showToast('Turma excluída.');
+});
+
+document.getElementById('btnNovaAvaliacao').addEventListener('click', ()=>{
+  const tot = totalResultadosTodasTurmas();
+  if(!confirm('Iniciar uma NOVA AVALIAÇÃO?\n\n• Apaga as ' + tot + ' correção(ões) de TODAS as turmas\n• Apaga as marcações do gabarito atual\n• MANTÉM as listas de alunos, as turmas, a configuração e os modelos salvos\n\n(Dica: salve o gabarito atual como modelo antes, se quiser reutilizá-lo.)')) return;
+  state.turmas.forEach(t=>{ t.resultados = []; });
+  state.resultados = turmaAtivaObj().resultados;
+  state.gabarito = Array(state.config.numQuestoes).fill(null);
+  resetarContextoDaTurma();
+  saveState();
+  atualizarTudo();
+  irParaAba('tab-gabarito');
+  showToast('Nova avaliação iniciada. Marque ou importe o novo gabarito.');
+});
+
+// Antes de uma mudança que invalida as correções (nº de questões, modelo...), avisa e, se aceito, limpa tudo.
+function confirmarTrocaDeAvaliacao(motivo){
+  const tot = totalResultadosTodasTurmas();
+  const abertos = itensPendentesAbertos();
+  if(!tot && !abertos){ return true; }
+  let txt = motivo + ' invalida as correções já feitas.\n\n';
+  if(tot) txt += '• ' + tot + ' correção(ões) lançada(s) serão APAGADAS (todas as turmas)\n';
+  if(abertos) txt += '• ' + abertos + ' foto(s) em revisão serão descartadas\n';
+  txt += '\nContinuar?';
+  if(!confirm(txt)) return false;
+  state.turmas.forEach(t=>{ t.resultados = []; });
+  state.resultados = turmaAtivaObj().resultados;
+  descartarPendentes();
+  saveState();
+  renderResultados();
+  renderTurmaBar();
+  renderGabaritoGrid();
+  return true;
+}
+
+function aplicarMetaTurma(v){
+  if(!v) v = turmaAtivaObj().nome;
+  state.meta.turma = v;
+  turmaAtivaObj().nome = v;
+  saveState();
+  renderTurmaBar();
+  const rn = document.getElementById('rosterTurmaNome'); if(rn) rn.textContent = v;
+}
 
 /* ============================================================
    TAB 3: CORRIGIR — utilidades de nome
@@ -954,16 +1257,47 @@ function levenshtein(a,b){
   return dp[m][n];
 }
 
+const STOP_NOMES = new Set(['da','de','do','das','dos','e','di','du','del','la']);
+function tokensNome(str){ return normalize(str).split(' ').filter(t=>t.length >= 2 && !STOP_NOMES.has(t)); }
+function tokenIgual(a,b){
+  if(a === b) return true;
+  if(a.length >= 5 && b.length >= 5 && Math.abs(a.length - b.length) <= 1) return levenshtein(a,b) <= 1;
+  return false;
+}
+
 function bestMatches(nomeLido, roster, topN=3){
-  const nTokens = normalize(nomeLido).split(' ').filter(Boolean);
+  const nT = tokensNome(nomeLido);
+  const nNorm = normalize(nomeLido);
   const scored = roster.map((nome, idx)=>{
-    const rTokens = normalize(nome).split(' ').filter(Boolean);
-    const common = nTokens.filter(t=>rTokens.includes(t)).length;
-    const dist = levenshtein(normalize(nomeLido), normalize(nome));
-    return { idx, nome, common, score: common*1000 - dist };
+    const rT = tokensNome(nome);
+    const usados = new Set();
+    let common = 0;
+    nT.forEach(t=>{
+      const j = rT.findIndex((r,k)=>!usados.has(k) && tokenIgual(t,r));
+      if(j >= 0){ usados.add(j); common++; }
+    });
+    const dist = levenshtein(nNorm, normalize(nome));
+    return { idx, nome, common, score: common*1000 - dist, cobertura: nT.length ? common/nT.length : 0 };
   });
   scored.sort((a,b)=>b.score-a.score);
   return scored.slice(0, topN);
+}
+
+// Decide se o nome lido da foto identifica UM aluno com segurança.
+// Antes: bastava 1 palavra em comum (ex.: "SILVA") -> alunos trocados/duplicados.
+// Agora: ignora "da/de/dos", exige 2+ palavras (ou nome de 1 palavra único) e rejeita empates.
+function avaliarMatch(nomeLido){
+  const nT = tokensNome(nomeLido);
+  if(!nT.length || !state.alunos.length) return { idx:null, confiavel:false, motivo:'nome não identificado na foto' };
+  const lista = bestMatches(nomeLido, state.alunos, state.alunos.length);
+  const m = lista[0], m2 = lista[1];
+  if(!m || m.common < 1) return { idx:null, confiavel:false, motivo:'nome "' + nomeLido + '" não encontrado na lista' };
+  let confiavel = (m.common >= 2) || (m.common === 1 && nT.length === 1);
+  let motivo = '';
+  if(m.cobertura < 0.6){ confiavel = false; motivo = 'nome lido só em parte coincide com a lista'; }
+  if(m2 && m2.common === m.common && (m.score - m2.score) < 5){ confiavel = false; motivo = 'nome parecido com mais de um aluno'; }
+  if(!confiavel && !motivo) motivo = 'poucas palavras em comum com o nome da lista';
+  return { idx: m.idx, confiavel, motivo };
 }
 
 /* ============================================================
@@ -987,21 +1321,26 @@ dropzone.addEventListener('drop', e=>{
 fileInput.addEventListener('change', e=> handleFiles(e.target.files));
 
 function handleFiles(fileList){
+  fileInput.value = '';
   if(state.alunos.length===0){
-    alert('Cadastre a lista de alunos (aba "Lista de Alunos") antes de corrigir as provas.');
+    alert('A turma "' + turmaAtivaObj().nome + '" não tem lista de alunos. Cadastre a lista (aba "Lista de Alunos") antes de corrigir as provas.');
     return;
   }
-  if(state.gabarito.some(v=>!v)){
-    alert('Marque e salve o gabarito correto (aba "Gabarito Correto") antes de corrigir as provas.');
+  const faltam = state.gabarito.filter(v=>!v).length;
+  if(faltam){
+    alert('O gabarito está incompleto (' + faltam + ' questão(ões) sem alternativa). Complete o gabarito (aba "Gabarito Correto") antes de corrigir as provas.');
     return;
   }
+  let repetidas = 0;
   Array.from(fileList).forEach(file=>{
+    const assinatura = file.name + '|' + file.size + '|' + file.lastModified;
+    if(pendingItems.some(p=>p.assinatura === assinatura)){ repetidas++; return; }   // mesma foto enviada 2x
     const id = 'p'+(++pendingCounter);
     const previewUrl = URL.createObjectURL(file);
-    pendingItems.push({ id, file, previewUrl, status:'pendente', alunoIndex:null, alunoIndex2:null, respostas: Array(state.config.numQuestoes).fill(null), nomeLido:'', nomesLidos:[] });
+    pendingItems.push({ id, file, assinatura, previewUrl, status:'pendente', alunoIndex:null, alunoIndex2:null, dupla:false, confirmados:[], aviso:'', respostas: Array(state.config.numQuestoes).fill(null), nomeLido:'', nomesLidos:[] });
   });
+  if(repetidas) showToast(repetidas + ' foto(s) repetida(s) ignorada(s) (já estavam na lista).');
   renderPending();
-  fileInput.value = '';
 }
 
 function renderPending(){
@@ -1026,7 +1365,21 @@ function renderPending(){
       editBtn.className='btn btn-outline btn-sm';
       editBtn.textContent='Editar';
       editBtn.addEventListener('click', ()=>{ item.collapsed=false; item.status='revisar'; renderPending(); });
-      compact.appendChild(editBtn);
+      const undoBtn = document.createElement('button');
+      undoBtn.className='btn btn-outline btn-sm';
+      undoBtn.style.marginLeft='6px';
+      undoBtn.textContent='Desfazer';
+      undoBtn.addEventListener('click', ()=>{
+        if(!confirm('Desfazer esta correção e remover o(s) resultado(s) lançado(s) por ela?')) return;
+        (item.confirmados||[]).forEach(i=>{ state.resultados = state.resultados.filter(r=>r.alunoIndex!==i); });
+        saveState();
+        try{ URL.revokeObjectURL(item.previewUrl); }catch(e){}
+        pendingItems = pendingItems.filter(p=>p.id!==item.id);
+        renderPending(); renderResultados(); renderTurmaBar();
+      });
+      const btnBox = document.createElement('div');
+      btnBox.appendChild(editBtn); btnBox.appendChild(undoBtn);
+      compact.appendChild(btnBox);
       wrap.appendChild(compact);
       return;
     }
@@ -1063,6 +1416,12 @@ function renderPending(){
     const [cls,label] = statusMap[item.status];
     head.innerHTML = `<strong>${item.file.name}</strong><span class="status-tag ${cls}">${label}</span>`;
     right.appendChild(head);
+    if(item.aviso && item.status==='revisar'){
+      const av = document.createElement('div');
+      av.className = 'msg error';
+      av.textContent = '⚠️ ' + item.aviso;
+      right.appendChild(av);
+    }
 
     if(item.status==='lendo'){
       right.innerHTML += '<div class="msg info">A IA está lendo o nome e as marcações do cartão-resposta…</div>';
@@ -1116,11 +1475,11 @@ function renderPending(){
       duplaToggle.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600;color:var(--gray-600);cursor:pointer';
       const duplaCheck = document.createElement('input');
       duplaCheck.type = 'checkbox';
-      duplaCheck.checked = item.alunoIndex2 !== null;
+      duplaCheck.checked = !!item.dupla;
       duplaToggle.appendChild(duplaCheck);
       duplaToggle.appendChild(document.createTextNode('Prova em dupla (creditar a um 2º aluno também)'));
       duplaWrap.appendChild(duplaToggle);
-      if(duplaCheck.checked){
+      if(item.dupla){
         const aluno2Label = document.createElement('label');
         aluno2Label.style.cssText = 'font-size:.78rem;font-weight:600;color:var(--gray-600);margin-top:6px;display:block';
         aluno2Label.textContent = 'Aluno 2';
@@ -1128,7 +1487,8 @@ function renderPending(){
         duplaWrap.appendChild(montarSeletorAluno(item.alunoIndex2, item.nomesLidos && item.nomesLidos[1], (v)=>{ item.alunoIndex2 = v; renderPending(); }));
       }
       duplaCheck.addEventListener('change', ()=>{
-        item.alunoIndex2 = duplaCheck.checked ? (item.alunoIndex2 !== null ? item.alunoIndex2 : null) : null;
+        item.dupla = duplaCheck.checked;
+        if(!item.dupla) item.alunoIndex2 = null;
         renderPending();
       });
       nomeBlock.appendChild(duplaWrap);
@@ -1175,16 +1535,17 @@ function renderPending(){
         confirmBtn.textContent='✔ Confirmar e adicionar aos resultados';
         confirmBtn.addEventListener('click', ()=>{
           if(item.alunoIndex===null){ alert('Selecione o aluno correspondente antes de confirmar.'); return; }
-          addResultado(item.alunoIndex, item.respostas);
+          if(item.dupla && item.alunoIndex2===null){ alert('Selecione o 2º aluno da dupla, ou desmarque "Prova em dupla".'); return; }
+          if(item.dupla && item.alunoIndex2 === item.alunoIndex){ alert('O Aluno 2 não pode ser o mesmo que o Aluno 1.'); return; }
+          if(!confirmarSubstituicao(item)) return;
+          registrarItem(item);
           let nomeConfirmado = state.alunos[item.alunoIndex];
-          if(item.alunoIndex2 !== null){
-            if(item.alunoIndex2 === item.alunoIndex){ alert('O Aluno 2 não pode ser o mesmo que o Aluno 1.'); return; }
-            addResultado(item.alunoIndex2, item.respostas);
-            nomeConfirmado += ' & ' + state.alunos[item.alunoIndex2];
-          }
+          if(item.dupla) nomeConfirmado += ' & ' + state.alunos[item.alunoIndex2];
+          item.aviso='';
           item.status='ok';
           item.collapsed=true;
           renderPending();
+          renderTurmaStatus();
           showToast('✔ ' + nomeConfirmado + ' corrigido! Pode tirar a próxima foto.');
           scrollToUploadArea();
         });
@@ -1204,6 +1565,26 @@ function fileToBase64(file){
     reader.onerror = ()=> reject(new Error('Falha ao ler arquivo'));
     reader.readAsDataURL(file);
   });
+}
+
+// Se o aluno escolhido já tem correção feita por OUTRA foto/lançamento, pergunta antes de substituir.
+function confirmarSubstituicao(item){
+  const novos = [item.alunoIndex]; if(item.dupla && item.alunoIndex2 !== null) novos.push(item.alunoIndex2);
+  const jaTem = novos.filter(i=>!(item.confirmados||[]).includes(i) && state.resultados.some(r=>r.alunoIndex===i));
+  if(!jaTem.length) return true;
+  const nomes = jaTem.map(i=>state.alunos[i]).join(' e ');
+  return confirm(nomes + ' já ' + (jaTem.length>1?'têm':'tem') + ' correção lançada. Substituir pela desta foto?\n\n(Cancelar = manter a anterior)');
+}
+
+// Grava o resultado do cartão; se a pessoa trocou o aluno durante a edição, remove o lançamento antigo (evita duplicar).
+function registrarItem(item){
+  const novos = [item.alunoIndex];
+  if(item.dupla && item.alunoIndex2 !== null) novos.push(item.alunoIndex2);
+  (item.confirmados||[]).forEach(i=>{
+    if(!novos.includes(i)) state.resultados = state.resultados.filter(r=>r.alunoIndex!==i);
+  });
+  novos.forEach(i=>addResultado(i, item.respostas));
+  item.confirmados = novos.slice();
 }
 
 async function lerItemComIA(item){
@@ -1227,16 +1608,18 @@ async function lerItemComIA(item){
 
 async function analyzeItem(id){
   const item = pendingItems.find(p=>p.id===id);
-  if(!item) return;
+  if(!item || item.status !== 'pendente') return;
   item.status='lendo';
   renderPending();
   try{
     await lerItemComIA(item);
-    const matches = bestMatches(item.nomesLidos[0] || '', state.alunos, 1);
-    if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
+    const av = avaliarMatch(item.nomesLidos[0] || '');
+    item.aviso = '';
+    if(av.confiavel) item.alunoIndex = av.idx; else item.aviso = 'Aluno não identificado com segurança (' + av.motivo + '). Escolha o aluno abaixo.';
     if(item.nomesLidos[1]){
-      const matches2 = bestMatches(item.nomesLidos[1], state.alunos, 1);
-      if(matches2.length && matches2[0].score > -3 && matches2[0].idx !== item.alunoIndex) item.alunoIndex2 = matches2[0].idx;
+      item.dupla = true;
+      const av2 = avaliarMatch(item.nomesLidos[1]);
+      if(av2.confiavel && av2.idx !== item.alunoIndex) item.alunoIndex2 = av2.idx;
     }
     item.status='revisar';
   }catch(err){
@@ -1252,13 +1635,16 @@ async function analyzeItem(id){
 async function processarTudoAutomatico(){
   const alvos = pendingItems.filter(p=>p.status==='pendente');
   if(alvos.length===0) return;
-  if(state.alunos.length===0){ alert('Cadastre a lista de alunos (aba "Lista de Alunos") antes de corrigir as provas.'); return; }
-  if(state.gabarito.some(v=>!v)){ alert('Marque e salve o gabarito correto (aba "Gabarito Correto") antes de corrigir as provas.'); return; }
+  if(state.alunos.length===0){ alert('A turma "' + turmaAtivaObj().nome + '" não tem lista de alunos. Cadastre a lista antes de corrigir.'); return; }
+  if(state.gabarito.some(v=>!v)){ alert('O gabarito está incompleto. Complete-o (aba "Gabarito Correto") antes de corrigir as provas.'); return; }
 
   const btn = document.getElementById('btnProcessarTudo');
   btn.disabled = true;
   const textoOriginal = btn.textContent;
   let okCount = 0, revisarCount = 0, erroCount = 0;
+
+  // alunos que já têm correção (antes do lote) ou que forem confirmados durante o lote: nunca são sobrescritos sem revisão
+  const jaCorrigidos = new Set(state.resultados.map(r=>r.alunoIndex));
 
   for(const item of alvos){
     item.status = 'lendo';
@@ -1266,30 +1652,35 @@ async function processarTudoAutomatico(){
     btn.textContent = `⏳ Processando (${okCount+revisarCount+erroCount+1}/${alvos.length})…`;
     try{
       await lerItemComIA(item);
-      const matches = bestMatches(item.nomesLidos[0] || '', state.alunos, 1);
-      const matchConfiavel = matches.length && matches[0].common >= 1;
-      let match2Confiavel = true, idx2 = null;
+      const marcadas = item.respostas.filter(Boolean).length;
+      const av = avaliarMatch(item.nomesLidos[0] || '');
+      let ok = av.confiavel, motivo = av.motivo;
+      if(ok && jaCorrigidos.has(av.idx)){ ok = false; motivo = state.alunos[av.idx] + ' já foi corrigido(a) — confirme se deseja substituir'; }
+      let av2 = null;
       if(item.nomesLidos[1]){
-        const matches2 = bestMatches(item.nomesLidos[1], state.alunos, 1);
-        match2Confiavel = matches2.length && matches2[0].common >= 1 && matches2[0].idx !== (matches[0] && matches[0].idx);
-        if(match2Confiavel) idx2 = matches2[0].idx;
-      }
-      if(matchConfiavel && match2Confiavel){
-        item.alunoIndex = matches[0].idx;
-        addResultado(item.alunoIndex, item.respostas);
-        if(idx2 !== null){
-          item.alunoIndex2 = idx2;
-          addResultado(item.alunoIndex2, item.respostas);
+        item.dupla = true;
+        av2 = avaliarMatch(item.nomesLidos[1]);
+        if(ok){
+          if(!av2.confiavel){ ok = false; motivo = '2º nome da dupla: ' + av2.motivo; }
+          else if(av2.idx === av.idx){ ok = false; motivo = 'os dois nomes da dupla coincidem com o mesmo aluno'; }
+          else if(jaCorrigidos.has(av2.idx)){ ok = false; motivo = state.alunos[av2.idx] + ' já foi corrigido(a) — confirme se deseja substituir'; }
         }
+      }
+      if(ok && marcadas < Math.ceil(state.config.numQuestoes * 0.5)){ ok = false; motivo = 'apenas ' + marcadas + ' de ' + state.config.numQuestoes + ' marcações foram lidas — confira a foto'; }
+      if(ok){
+        item.alunoIndex = av.idx;
+        item.alunoIndex2 = av2 ? av2.idx : null;
+        registrarItem(item);
+        jaCorrigidos.add(item.alunoIndex);
+        if(item.alunoIndex2 !== null) jaCorrigidos.add(item.alunoIndex2);
+        item.aviso = '';
         item.status = 'ok';
         item.collapsed = true;
         okCount++;
       }else{
-        if(matches.length && matches[0].score > -3) item.alunoIndex = matches[0].idx;
-        if(item.nomesLidos[1]){
-          const matches2b = bestMatches(item.nomesLidos[1], state.alunos, 1);
-          if(matches2b.length && matches2b[0].score > -3 && matches2b[0].idx !== item.alunoIndex) item.alunoIndex2 = matches2b[0].idx;
-        }
+        if(av.confiavel) item.alunoIndex = av.idx;
+        if(av2 && av2.confiavel && av2.idx !== item.alunoIndex) item.alunoIndex2 = av2.idx;
+        item.aviso = motivo;
         item.status = 'revisar';
         revisarCount++;
       }
@@ -1297,10 +1688,12 @@ async function processarTudoAutomatico(){
       console.error(err);
       item.status = 'revisar';
       item.nomeLido = '';
+      item.aviso = 'Erro ao ler a foto: ' + err.message + '. Marque as respostas manualmente.';
       erroCount++;
     }
     renderPending();
   }
+  renderTurmaStatus();
 
   btn.disabled = false;
   btn.textContent = textoOriginal;
@@ -1407,10 +1800,14 @@ async function handleRosterFiles(fileList){
   }
   if(novosNomes.length){
     const textarea = document.getElementById('rosterInput');
-    const atual = textarea.value.trim();
-    const bloco = novosNomes.join('\n');
-    textarea.value = atual ? (atual + '\n' + bloco) : bloco;
-    showMsg('msgRoster', novosNomes.length + ' nome(s) extraído(s) e adicionado(s) à lista. Revise (duplicados, erros de leitura) antes de clicar em "Salvar lista".', 'ok');
+    const tinhaTexto = textarea.value.trim().length > 0;
+    const { lista, dup } = limparListaNomes(novosNomes);
+    textarea.value = lista.join('\n');   // SUBSTITUI (antes somava e duplicava)
+    let msg = lista.length + ' nome(s) importado(s) para a turma "' + turmaAtivaObj().nome + '"';
+    if(dup) msg += ' (' + dup + ' repetido(s) removido(s))';
+    if(tinhaTexto) msg += ' — o conteúdo anterior do editor foi substituído';
+    msg += '. Revise os nomes e clique em "Salvar lista".';
+    showMsg('msgRoster', msg, 'ok');
   }else if(!algumErro){
     showMsg('msgRoster', 'Nenhum nome foi identificado no(s) arquivo(s) enviado(s).', 'error');
   }
@@ -1450,8 +1847,8 @@ async function callListExtractionAPI(base64Data, mediaType, isPdf){
 
 /* ---------- lançamento manual ---------- */
 document.getElementById('btnManual').addEventListener('click', ()=>{
-  if(state.alunos.length===0){ alert('Cadastre a lista de alunos primeiro.'); return; }
-  if(state.gabarito.some(v=>!v)){ alert('Marque e salve o gabarito correto primeiro.'); return; }
+  if(state.alunos.length===0){ alert('A turma "' + turmaAtivaObj().nome + '" não tem lista de alunos. Cadastre a lista primeiro.'); return; }
+  if(state.gabarito.some(v=>!v)){ alert('O gabarito está incompleto. Complete-o primeiro.'); return; }
   renderManualForm();
 });
 
@@ -1533,12 +1930,18 @@ function renderManualForm(){
     if(sel.value===''){ alert('Selecione o aluno.'); return; }
     if(duplaCheck.checked && sel2.value==='' ){ alert('Selecione o 2º aluno da dupla, ou desmarque a opção de dupla.'); return; }
     if(duplaCheck.checked && sel2.value===sel.value){ alert('O Aluno 2 não pode ser o mesmo que o Aluno 1.'); return; }
-    let nomeConfirmado = state.alunos[parseInt(sel.value,10)];
-    addResultado(parseInt(sel.value,10), respostas);
-    if(duplaCheck.checked){
-      addResultado(parseInt(sel2.value,10), respostas);
-      nomeConfirmado += ' & ' + state.alunos[parseInt(sel2.value,10)];
+    const i1 = parseInt(sel.value,10);
+    const i2 = duplaCheck.checked ? parseInt(sel2.value,10) : null;
+    const ids = i2 === null ? [i1] : [i1, i2];
+    const jaTem = ids.filter(i=>state.resultados.some(r=>r.alunoIndex===i));
+    if(jaTem.length && !confirm(jaTem.map(i=>state.alunos[i]).join(' e ') + ' já ' + (jaTem.length>1?'têm':'tem') + ' correção lançada. Substituir?')) return;
+    let nomeConfirmado = state.alunos[i1];
+    addResultado(i1, respostas);
+    if(i2 !== null){
+      addResultado(i2, respostas);
+      nomeConfirmado += ' & ' + state.alunos[i2];
     }
+    renderTurmaStatus();
     showToast('✔ ' + nomeConfirmado + ' corrigido! Pronto para o próximo.');
     renderManualForm();
   });
@@ -1551,6 +1954,7 @@ function renderManualForm(){
    RESULTADOS
 ============================================================ */
 function addResultado(alunoIndex, respostas){
+  if(alunoIndex === null || alunoIndex === undefined || !state.alunos[alunoIndex]) return;  // aluno inexistente: nunca grava
   const total = state.config.numQuestoes;
   let acertos = 0;
   for(let i=0;i<total;i++){
@@ -1729,6 +2133,7 @@ function renderResultados(){
         state.resultados = state.resultados.filter(x=>x.id!==r.id);
         saveState();
         renderResultados();
+        renderTurmaBar();
       });
       tdAcoes.appendChild(del);
     }else{
@@ -1921,9 +2326,8 @@ document.getElementById('btnAddMateria').addEventListener('click', ()=>{
 });
 
 document.getElementById('btnPresetCN').addEventListener('click', ()=>{
-  let aviso = 'Configurar 40 questões, alternativas A–E, e as matérias Biologia (1–14), Física (15–27) e Química (28–40)?';
-  if(state.resultados.length) aviso += '\n\nAtenção: já existem ' + state.resultados.length + ' correções lançadas com a configuração anterior. Recomenda-se limpá-las na aba Resultados antes de corrigir esta prova.';
-  if(!confirm(aviso)) return;
+  if(!confirm('Configurar 40 questões, alternativas A–E, e as matérias Biologia (1–14), Física (15–27) e Química (28–40)?')) return;
+  if((state.config.numQuestoes !== 40 || state.config.numAlternativas !== 5) && !confirmarTrocaDeAvaliacao('Aplicar o modelo Ciências da Natureza')) return;
   aplicarConfig(40, 5);
   state.materias = [
     { id: novoIdMateria(), nome: 'Biologia', inicio: 1,  fim: 14 },
@@ -2387,16 +2791,19 @@ document.getElementById('btnImprimir').addEventListener('click', ()=>{
 });
 
 document.getElementById('btnLimparResultados').addEventListener('click', ()=>{
-  if(!confirm('Remover TODOS os resultados salvos? Esta ação não pode ser desfeita.')) return;
+  if(!confirm('Remover TODOS os resultados da turma "' + turmaAtivaObj().nome + '"? (As outras turmas não são afetadas.) Esta ação não pode ser desfeita.')) return;
   state.resultados = [];
   saveState();
   renderResultados();
+  renderTurmaBar();
+  renderPending();
 });
 
 /* ============================================================
    INIT
 ============================================================ */
 function init(){
+  renderTurmaBar();
   loadMetaFields();
   renderGabaritoGrid();
   renderRoster();
