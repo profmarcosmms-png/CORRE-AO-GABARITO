@@ -370,6 +370,29 @@
       <div id="msgMaterias"></div>
     </div>
 
+    <div class="card no-print" id="cardLista">
+      <h2>📝 Adendo — Correção de listas de exercícios (marcação na própria folha)</h2>
+      <p class="hint">Para listas como a <strong>"LISTA 02 – Porcentagem"</strong>, em que o aluno marca a resposta direto nas questões (circulando, fazendo X ou pintando a letra) e escreve o nome no rodapé ("Nome do(a) aluno(a)"). Neste modo a IA lê o nome no rodapé e ignora as bolinhas verdes impressas, considerando só a letra que o aluno <strong>marcou</strong>.</p>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="chkModoLista"> Ativar modo "lista de exercícios" na leitura das fotos
+      </label>
+      <div style="margin-bottom:12px;max-width:380px">
+        <label>Código da atividade desta lista (impresso no cabeçalho)</label>
+        <input type="text" id="inputCodigoLista" placeholder="Ex.: ATV-MAT-2610-001">
+        <p class="hint" style="margin:4px 0 0">Preenchido sozinho ao importar o gabarito por foto. Depois, cada foto de aluno tem o código conferido: se for de <strong>outra lista</strong>, o app avisa e não confirma sozinho. Se o código for de um modelo salvo, o gabarito certo é carregado automaticamente.</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-gold btn-sm" id="btnPresetLista02">⚡ Modelo: Lista 02 — Porcentagem (6 questões, A–E)</button>
+      </div>
+      <p class="hint" style="margin-top:14px"><strong>Outras listas:</strong> envie a foto/PDF da lista em branco e a IA <em>resolve as questões</em> para sugerir o gabarito. Atenção: é uma resolução automática — <strong>confira cada resposta</strong> antes de corrigir os alunos.</p>
+      <div class="dropzone" id="listaDropzone">
+        <strong>Clique para escolher</strong> a foto ou PDF da lista (sem marcações)<br>
+        <span style="font-size:.8rem">Usa a chave de API da aba "Corrigir Provas"</span>
+        <input type="file" id="listaFileInput" accept="image/*,application/pdf" style="display:none">
+      </div>
+      <div id="listaImportMsg"></div>
+    </div>
+
     <div class="card no-print" id="cardImportarGabarito">
       <h2>Importar gabarito por foto ou PDF</h2>
       <p class="hint">Envie uma foto ou PDF do gabarito oficial da prova (a lista de respostas corretas). A IA preenche as alternativas automaticamente — <strong>sempre confira antes de salvar</strong>, para evitar erro de digitação ou de leitura.</p>
@@ -486,7 +509,8 @@
       </div>
       <div class="toolbar no-print">
         <button class="btn btn-gold" id="btnExportCsv">⬇️ Exportar CSV</button>
-        <button class="btn btn-outline" id="btnImprimir">⬇️ Baixar PDF / Imprimir esta lista</button>
+        <button class="btn btn-primary" id="btnBaixarPdf">📄 Baixar PDF (resultados + detalhamento)</button>
+        <button class="btn btn-outline" id="btnImprimir">🖨️ Imprimir</button>
         <button class="btn btn-danger" id="btnLimparResultados">Limpar resultados desta turma</button>
       </div>
       <table class="results tbl-resumo" id="tabelaResultados">
@@ -554,7 +578,7 @@ function novoIdTurma(){ return 't' + Date.now().toString(36) + Math.random().toS
 function defaultState(){
   const t = { id: novoIdTurma(), nome: 'Turma 1', alunos: [], resultados: [] };
   return {
-    config: { numQuestoes: 20, numAlternativas: 4 },
+    config: { numQuestoes: 20, numAlternativas: 4, modoLista: false, codigoLista: '' },
     meta: { escola:'', professor:'', disciplina:'', turma:'Turma 1', bimestre:'', data:'' },
     gabarito: Array(20).fill(null),
     turmas: [t],          // cada turma tem a SUA lista de alunos e os SEUS resultados
@@ -699,6 +723,8 @@ function aplicarConfig(n, alt){
 }
 
 function loadMetaFields(){
+  const chk = document.getElementById('chkModoLista'); if(chk) chk.checked = !!state.config.modoLista;
+  const ic = document.getElementById('inputCodigoLista'); if(ic) ic.value = state.config.codigoLista || '';
   garantirOpcao('cfgNumQuestoes', state.config.numQuestoes);
   document.getElementById('cfgNumQuestoes').value = state.config.numQuestoes;
   document.getElementById('cfgNumAlternativas').value = state.config.numAlternativas;
@@ -768,15 +794,21 @@ document.getElementById('btnLimparGabarito').addEventListener('click', ()=>{
 /* ============================================================
    IMPORTAR GABARITO POR FOTO OU PDF
 ============================================================ */
-async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf){
+async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf, resolver){
   const headers = buildApiHeaders();
-  const prompt = 'Este documento é o GABARITO OFICIAL de uma avaliação escolar — ou seja, a lista das respostas CORRETAS de cada questão (não é a prova de um aluno, é a folha de correção do professor). '+
+  const promptResolver = 'Este documento é uma LISTA DE EXERCÍCIOS de múltipla escolha, SEM gabarito (as questões estão em branco, sem marcações do aluno). '+
+    'RESOLVA cada questão com cuidado, fazendo os cálculos e o raciocínio completo, e identifique qual alternativa (A–E) é a correta. '+
+    'Confira o resultado de cada questão antes de responder (por exemplo, substituindo na pergunta). Se uma questão estiver ilegível ou ambígua, retorne null — não chute. '+
+    'Se o documento tiver um "Código da atividade" impresso (ex.: ATV-MAT-2610-001), copie-o no campo "codigo"; se não houver, use null. '+
+    'Responda ESTRITAMENTE em JSON válido, sem texto antes ou depois, sem blocos de código, no formato exato: {"respostas": {"1": "C", "2": "B", "3": null}, "codigo": "ATV-MAT-2610-001"}';
+  const prompt = resolver ? promptResolver : 'Este documento é o GABARITO OFICIAL de uma avaliação escolar — ou seja, a lista das respostas CORRETAS de cada questão (não é a prova de um aluno, é a folha de correção do professor). '+
     'Ele pode estar em formato de tabela, lista numerada (ex.: "1-A", "2. C"), texto corrido OU como um cartão-resposta em que a alternativa correta de cada questão é a bolha PREENCHIDA (pintada de escuro) da linha — nesse caso ignore a coluna "Professor" e note que o cartão pode ter várias colunas de questões (ex.: 1–20 à esquerda e 21–40 à direita). '+
     'Extraia a alternativa correta de cada questão numerada. As alternativas podem ir de A até E. '+
     'Extraia TODAS as questões que conseguir identificar, mesmo que sejam muitas. '+
     'Se não conseguir determinar a resposta de alguma questão com segurança, retorne null para ela — não invente. '+
     'Responda ESTRITAMENTE em JSON válido, sem texto antes ou depois, sem blocos de código, no formato exato: '+
-    '{"respostas": {"1": "A", "2": "C", "3": null}}';
+    'Se o documento tiver um "Código da atividade" impresso (ex.: ATV-MAT-2610-001), copie-o no campo "codigo"; se não houver, use null. '+
+    '{"respostas": {"1": "A", "2": "C", "3": null}, "codigo": "ATV-MAT-2610-001"}';
 
   const contentBlock = isPdf
     ? { type: 'document', source: { type:'base64', media_type:'application/pdf', data: base64Data } }
@@ -784,7 +816,7 @@ async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf){
 
   const body = {
     model: "claude-sonnet-4-6",
-    max_tokens: 3000,
+    max_tokens: resolver ? 8000 : 3000,
     messages: [{ role:'user', content:[ contentBlock, { type:'text', text: prompt } ] }]
   };
 
@@ -799,16 +831,18 @@ async function callGabaritoExtractionAPI(base64Data, mediaType, isPdf){
   let raw = textBlock.text.trim();
   raw = raw.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
   const parsed = JSON.parse(raw);
-  return parsed.respostas || {};
+  return { respostas: parsed.respostas || {}, codigo: parsed.codigo ? String(parsed.codigo).trim().toUpperCase() : '' };
 }
 
-async function loadGabaritoFile(file){
-  showMsg('gabImportMsg', 'Lendo gabarito com IA, aguarde…', 'info');
+async function loadGabaritoFile(file, resolver){
+  const MID = resolver ? 'listaImportMsg' : 'gabImportMsg';
+  showMsg(MID, resolver ? 'Resolvendo a lista com IA, aguarde…' : 'Lendo gabarito com IA, aguarde…', 'info');
   try{
     const base64 = await fileToBase64(file);
     const isPdf = file.type === 'application/pdf';
     const mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
-    const respostas = await callGabaritoExtractionAPI(base64, mediaType, isPdf);
+    const ext = await callGabaritoExtractionAPI(base64, mediaType, isPdf, resolver);
+    const respostas = ext.respostas;
 
     // Detecta quantas questões / alternativas o documento tem e, se for diferente da
     // configuração atual, oferece ajustar automaticamente.
@@ -838,17 +872,24 @@ async function loadGabaritoFile(file){
         preenchidas++;
       }
     }
+    if(ext.codigo && normCodigo(ext.codigo) !== normCodigo(state.config.codigoLista)){
+      state.config.codigoLista = ext.codigo;
+      const ic = document.getElementById('inputCodigoLista'); if(ic) ic.value = ext.codigo;
+    }
     saveState();
     renderGabaritoGrid();
     renderTurmaStatus();
-    let msg = `✔ ${preenchidas} de ${n} questões preenchidas automaticamente. Revise a grade abaixo (compare com o papel) antes de salvar.`;
+    let msg = resolver
+      ? `🧮 ${preenchidas} de ${n} questões RESOLVIDAS pela IA (não é um gabarito oficial). Confira cada resposta na grade abaixo antes de corrigir os alunos.`
+      : `✔ ${preenchidas} de ${n} questões preenchidas automaticamente. Revise a grade abaixo (compare com o papel) antes de salvar.`;
+    if(ext.codigo) msg += ` Código da atividade: ${ext.codigo}.`;
     if(maxEncontrado > n){
       msg += ` O documento parece ter ${maxEncontrado} questões — ajuste "Nº de questões" no topo e importe de novo.`;
     }
-    showMsg('gabImportMsg', msg, preenchidas < n ? 'error' : 'ok');
+    showMsg(MID, msg, preenchidas < n ? 'error' : 'ok');
   }catch(err){
     console.error(err);
-    showMsg('gabImportMsg', 'Não foi possível ler o gabarito automaticamente (' + err.message + '). Marque as alternativas manualmente abaixo.', 'error');
+    showMsg(MID, 'Não foi possível ler o gabarito automaticamente (' + err.message + '). Marque as alternativas manualmente abaixo.', 'error');
   }
 }
 
@@ -869,8 +910,66 @@ gabFileInput.addEventListener('change', e=>{
 });
 
 /* ============================================================
+   ADENDO — LISTAS DE EXERCÍCIOS (marcação na própria folha)
+============================================================ */
+const listaDropzone = document.getElementById('listaDropzone');
+const listaFileInput = document.getElementById('listaFileInput');
+listaDropzone.addEventListener('click', ()=> listaFileInput.click());
+listaFileInput.addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(f){ setModoLista(true); loadGabaritoFile(f, true); }
+  listaFileInput.value = '';
+});
+
+function normCodigo(c){ return String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+document.getElementById('inputCodigoLista').addEventListener('change', e=>{
+  state.config.codigoLista = e.target.value.trim().toUpperCase();
+  saveState();
+});
+
+function setModoLista(v){
+  state.config.modoLista = !!v;
+  document.getElementById('chkModoLista').checked = !!v;
+  saveState();
+}
+document.getElementById('chkModoLista').addEventListener('change', e=> setModoLista(e.target.checked));
+
+document.getElementById('btnPresetLista02').addEventListener('click', ()=>{
+  if(!confirm('Aplicar o modelo "Lista 02 — Porcentagem" (6 questões, A–E, gabarito C B A E D B)?\n\nGabarito calculado: Q1 C (R$192,00) · Q2 B (43%) · Q3 A (32%) · Q4 E (35%) · Q5 D (R$500,00) · Q6 B (20%).')) return;
+  const mudou = state.config.numQuestoes !== 6 || state.config.numAlternativas !== 5 || state.gabarito.join() !== 'C,B,A,E,D,B';
+  if(mudou && !confirmarTrocaDeAvaliacao('Aplicar o modelo Lista 02')) return;
+  aplicarConfig(6, 5);
+  state.gabarito = ['C','B','A','E','D','B'];
+  state.materias = [];
+  state.meta.disciplina = 'Matemática';
+  state.meta.bimestre = '4º Bim — Lista 02: Porcentagem';
+  visaoMateria = 'geral';
+  state.config.codigoLista = 'ATV-MAT-2610-001';
+  setModoLista(true);
+  loadMetaFields();
+  renderGabaritoGrid(); renderMaterias(); renderVisaoSelector(); renderResultados(); renderTurmaStatus();
+  showMsg('msgGabarito', 'Modelo Lista 02 aplicado: 6 questões, A–E, modo lista ativado. Agora é só escolher a turma e corrigir as fotos.', 'ok');
+});
+
+/* ============================================================
    MODELOS DE GABARITO SALVOS (para reutilizar em outra avaliação)
 ============================================================ */
+function aplicarModelo(modelo){
+  state.config = JSON.parse(JSON.stringify(modelo.config));
+  if(state.config.codigoLista === undefined) state.config.codigoLista = '';
+  state.meta = JSON.parse(JSON.stringify(modelo.meta));
+  state.meta.turma = turmaAtivaObj().nome;   // a turma é a da barra superior, não a do modelo
+  state.gabarito = JSON.parse(JSON.stringify(modelo.gabarito));
+  state.materias = JSON.parse(JSON.stringify(modelo.materias || []));
+  saveState();
+  loadMetaFields();
+  renderGabaritoGrid();
+  renderMaterias();
+  renderVisaoSelector();
+  renderResultados();
+  renderTurmaStatus();
+}
+
 function renderModelos(){
   const wrap = document.getElementById('listaModelos');
   wrap.innerHTML = '';
@@ -894,17 +993,7 @@ function renderModelos(){
     btnCarregar.addEventListener('click', ()=>{
       if(!confirm(`Carregar o modelo "${modelo.nome}"? Isso vai substituir o gabarito, a configuração e os campos do cabeçalho atuais (as listas de alunos das turmas não são afetadas).`)) return;
       if(!confirmarTrocaDeAvaliacao('Carregar outro modelo de gabarito')) return;
-      state.config = JSON.parse(JSON.stringify(modelo.config));
-      state.meta = JSON.parse(JSON.stringify(modelo.meta));
-      state.meta.turma = turmaAtivaObj().nome;   // a turma é a da barra superior, não a do modelo
-      state.gabarito = JSON.parse(JSON.stringify(modelo.gabarito));
-      state.materias = JSON.parse(JSON.stringify(modelo.materias || []));
-      saveState();
-      loadMetaFields();
-      renderGabaritoGrid();
-      renderMaterias();
-      renderVisaoSelector();
-      renderResultados();
+      aplicarModelo(modelo);
       showMsg('msgModelo', `Modelo "${modelo.nome}" carregado ✔`, 'ok');
     });
     const btnRemover = document.createElement('button');
@@ -1525,6 +1614,7 @@ function renderPending(){
           if(item.alunoIndex===null){ alert('Selecione o aluno correspondente antes de confirmar.'); return; }
           if(item.dupla && item.alunoIndex2===null){ alert('Selecione o 2º aluno da dupla, ou desmarque "Prova em dupla".'); return; }
           if(item.dupla && item.alunoIndex2 === item.alunoIndex){ alert('O Aluno 2 não pode ser o mesmo que o Aluno 1.'); return; }
+          if(avisoCodigo(item) && !confirm(avisoCodigo(item) + '\n\nCorrigir mesmo assim?')) return;
           if(!confirmarSubstituicao(item)) return;
           registrarItem(item);
           let nomeConfirmado = state.alunos[item.alunoIndex];
@@ -1555,6 +1645,24 @@ function fileToBase64(file){
   });
 }
 
+// Código da atividade lido na foto x código configurado. Retorna texto de aviso ou ''.
+function avisoCodigo(item){
+  const lido = normCodigo(item.codigo), cfg = normCodigo(state.config.codigoLista);
+  if(!lido || !cfg || lido === cfg) return '';
+  return 'O código da atividade na foto (' + item.codigo + ') é diferente do configurado (' + state.config.codigoLista + '). Pode ser OUTRA lista — confira antes de confirmar.';
+}
+
+// Se a foto é de uma lista cujo modelo está salvo (mesmo código) e ainda não há correções, carrega o gabarito certo sozinho.
+function tentarModeloPorCodigo(item){
+  const cod = normCodigo(item.codigo);
+  if(!cod || cod === normCodigo(state.config.codigoLista)) return null;
+  if(totalResultadosTodasTurmas() > 0) return null;
+  const m = state.modelosGabarito.slice().reverse().find(x=>x.config && normCodigo(x.config.codigoLista) === cod);
+  if(!m) return null;
+  aplicarModelo(m);
+  return m;
+}
+
 // Se o aluno escolhido já tem correção feita por OUTRA foto/lançamento, pergunta antes de substituir.
 function confirmarSubstituicao(item){
   const novos = [item.alunoIndex]; if(item.dupla && item.alunoIndex2 !== null) novos.push(item.alunoIndex2);
@@ -1582,6 +1690,7 @@ async function lerItemComIA(item){
   const nomesArr = Array.isArray(result.nomes) ? result.nomes.filter(Boolean) : (result.nome ? [result.nome] : []);
   item.nomesLidos = nomesArr;
   item.nomeLido = nomesArr[0] || '';
+  item.codigo = result.codigo ? String(result.codigo).trim().toUpperCase() : '';
   const n = state.config.numQuestoes;
   const opts = LETTERS.slice(0, state.config.numAlternativas);
   const respostas = Array(n).fill(null);
@@ -1601,9 +1710,11 @@ async function analyzeItem(id){
   renderPending();
   try{
     await lerItemComIA(item);
+    const modeloAuto = tentarModeloPorCodigo(item);
+    if(modeloAuto){ showToast('Gabarito do modelo "' + modeloAuto.nome + '" carregado pelo código da lista.'); await lerItemComIA(item); }
     const av = avaliarMatch(item.nomesLidos[0] || '');
-    item.aviso = '';
-    if(av.confiavel) item.alunoIndex = av.idx; else item.aviso = 'Aluno não identificado com segurança (' + av.motivo + '). Escolha o aluno abaixo.';
+    item.aviso = avisoCodigo(item);
+    if(av.confiavel) item.alunoIndex = av.idx; else item.aviso = (item.aviso ? item.aviso + ' ' : '') + 'Aluno não identificado com segurança (' + av.motivo + '). Escolha o aluno abaixo.';
     if(item.nomesLidos[1]){
       item.dupla = true;
       const av2 = avaliarMatch(item.nomesLidos[1]);
@@ -1640,9 +1751,15 @@ async function processarTudoAutomatico(){
     btn.textContent = `⏳ Processando (${okCount+revisarCount+erroCount+1}/${alvos.length})…`;
     try{
       await lerItemComIA(item);
+      if(okCount + revisarCount + erroCount === 0){
+        const modeloAuto = tentarModeloPorCodigo(item);
+        if(modeloAuto){ showToast('Gabarito do modelo "' + modeloAuto.nome + '" carregado pelo código da lista.'); await lerItemComIA(item); }
+      }
       const marcadas = item.respostas.filter(Boolean).length;
       const av = avaliarMatch(item.nomesLidos[0] || '');
       let ok = av.confiavel, motivo = av.motivo;
+      const avCod = avisoCodigo(item);
+      if(avCod){ ok = false; motivo = avCod; }
       if(ok && jaCorrigidos.has(av.idx)){ ok = false; motivo = state.alunos[av.idx] + ' já foi corrigido(a) — confirme se deseja substituir'; }
       let av2 = null;
       if(item.nomesLidos[1]){
@@ -1668,7 +1785,7 @@ async function processarTudoAutomatico(){
       }else{
         if(av.confiavel) item.alunoIndex = av.idx;
         if(av2 && av2.confiavel && av2.idx !== item.alunoIndex) item.alunoIndex2 = av2.idx;
-        item.aviso = motivo;
+        item.aviso = (avCod && motivo !== avCod) ? (avCod + ' ' + motivo) : motivo;
         item.status = 'revisar';
         revisarCount++;
       }
@@ -1722,7 +1839,14 @@ async function callVisionAPI(base64Image, mediaType){
   const headers = buildApiHeaders();
   const n = state.config.numQuestoes;
   const opts = LETTERS.slice(0, state.config.numAlternativas).join(', ');
-  const prompt = 'Esta é a foto de um cartão-resposta (gabarito) de uma avaliação escolar brasileira, com '+n+' questões numeradas de 1 a '+n+'. '+
+  const promptLista = 'Esta é a foto de uma LISTA DE EXERCÍCIOS impressa de múltipla escolha, com '+n+' questões numeradas de 1 a '+n+' (podem estar em duas colunas). '+
+    'Cada questão mostra as alternativas '+opts+' com uma bolinha/letra IMPRESSA em todas elas — essas bolinhas impressas NÃO são marcações. '+
+    'O aluno marcou a resposta escolhida na própria folha: circulando, fazendo X, riscando, preenchendo ou destacando a alternativa (a lápis ou caneta). Identifique, em cada questão, a alternativa que tem a marca feita À MÃO pelo aluno. '+
+    'O nome do aluno fica no rodapé, após "Nome do(a) aluno(a):" — leia-o completo (se houver 2 nomes, é prova em dupla). Ignore o nome do professor, da escola, turma e data. '+
+    'Se uma questão não tiver marca do aluno, ou tiver mais de uma alternativa marcada sem ficar claro qual vale (ex.: uma rasurada), retorne null — não invente. '+
+    'Copie também o "Código da atividade" impresso no cabeçalho (ex.: ATV-MAT-2610-001) no campo "codigo"; se não estiver legível, use null. '+
+    'Responda ESTRITAMENTE em JSON válido, sem texto antes ou depois, sem blocos de código, no formato exato: {"nomes": ["string"], "codigo": "ATV-MAT-2610-001", "respostas": {"1": "A", "2": null, "3": "C"}}';
+  const prompt = state.config.modoLista ? promptLista : 'Esta é a foto de um cartão-resposta (gabarito) de uma avaliação escolar brasileira, com '+n+' questões numeradas de 1 a '+n+'. '+
     'Cada questão tem círculos com as letras '+opts+', e o aluno preenche (pinta) o círculo da alternativa escolhida. '+
     'Tarefa: 1) leia o(s) nome(s) do(s) estudante(s) escrito(s) no cabeçalho do documento, se houver — a prova pode ser individual (1 nome) ou em dupla (2 nomes, às vezes separados por "e", "/", "&", vírgula, ou em linhas diferentes); 2) para CADA questão de 1 a '+n+', identifique qual círculo está preenchido/marcado. '+
     'Se uma questão não tiver nenhuma marcação clara, ou tiver mais de uma marcação, retorne null para essa questão (não invente uma resposta). '+
@@ -2774,8 +2898,7 @@ document.getElementById('btnExportCsv').addEventListener('click', ()=>{
 });
 
 document.getElementById('btnImprimir').addEventListener('click', ()=>{
-  showToast('Na janela que abrir, escolha "Salvar como PDF" no destino/impressora para baixar o arquivo.');
-  setTimeout(()=> window.print(), 400);
+  setTimeout(()=> window.print(), 200);
 });
 
 document.getElementById('btnLimparResultados').addEventListener('click', ()=>{
@@ -2786,6 +2909,181 @@ document.getElementById('btnLimparResultados').addEventListener('click', ()=>{
   renderTurmaBar();
   renderPending();
 });
+
+
+/* ============================================================
+   BAIXAR PDF (arquivo pronto, 1 clique) — jsPDF + AutoTable
+============================================================ */
+function carregarScript(src){
+  return new Promise((resolve, reject)=>{
+    const sc = document.createElement('script');
+    sc.src = src; sc.onload = resolve;
+    sc.onerror = ()=> reject(new Error('sem conexão com a internet para preparar o PDF'));
+    document.head.appendChild(sc);
+  });
+}
+async function ensurePdfLib(){
+  if(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable) return;
+  if(!(window.jspdf && window.jspdf.jsPDF)) await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!(window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable)) await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+}
+
+function carregarImg(src){
+  return new Promise(res=>{ const im = new Image(); const t = setTimeout(()=>res(null), 4000); im.onload = ()=>{ clearTimeout(t); res({ src, w: im.naturalWidth||1, h: im.naturalHeight||1 }); }; im.onerror = ()=>{ clearTimeout(t); res(null); }; im.src = src; });
+}
+
+const PDF_COR = { verde:[30,122,70], vermelho:[192,57,43], verdeBg:[230,244,234], vermelhoBg:[253,232,232], cinzaBg:[238,240,243], cinza:[150,150,150], navy:[26,54,93], ouro:[201,162,39], linha:[90,90,90] };
+
+function pdfCabecalho(doc, titulo){
+  const W = doc.internal.pageSize.getWidth();
+  let y = 12;
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor.apply(doc, PDF_COR.navy);
+  doc.text(titulo, W/2, y, { align:'center' }); y += 5.5;
+  if(state.meta.escola){ doc.setFontSize(10); doc.setTextColor(40); doc.text(state.meta.escola, W/2, y, { align:'center' }); y += 5; }
+  const dest = [];
+  if(state.meta.turma) dest.push('Turma: ' + state.meta.turma);
+  if(state.meta.professor) dest.push('Professor(a): ' + state.meta.professor);
+  if(dest.length){ doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(0); doc.text(dest.join('  ·  '), W/2, y, { align:'center' }); y += 5; }
+  const sub = [];
+  if(state.meta.disciplina) sub.push(state.meta.disciplina);
+  if(state.meta.bimestre) sub.push(state.meta.bimestre);
+  if(state.meta.data) sub.push('Data: ' + state.meta.data);
+  if(sub.length){ doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(80); doc.text(sub.join('  ·  '), W/2, y, { align:'center' }); y += 4; }
+  return y + 2;
+}
+
+function pdfResultados(doc, titulo, colunas, multi, imgs){
+  doc.addPage('a4', 'p');
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const y0 = pdfCabecalho(doc, titulo);
+  const n = Math.max(1, state.alunos.length);
+  const temAssin = imgs.some(Boolean);
+  const rowH = Math.max(5.2, Math.min(temAssin ? 12 : 9, (H - 10 - y0 - 8) / n));
+  const mx = 10, usable = W - 2*mx;
+  const wNum = 9, wAss = multi ? 38 : 55, wRes = multi ? 20 : 28;
+  const wNome = usable - wNum - wAss - wRes*colunas.length;
+  // ajusta o tamanho da fonte para o nome inteiro caber numa linha
+  let fs = 9;
+  doc.setFont('helvetica','normal'); doc.setFontSize(fs);
+  const maior = state.alunos.reduce((m,nm)=>Math.max(m, doc.getTextWidth(nm)), 0);
+  if(maior > wNome - 4) fs = Math.max(5.5, 9 * (wNome - 4) / maior);
+  const body = state.alunos.map((nome, idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex === idx);
+    const cels = colunas.map(c=>{
+      if(!r) return { content:'-', styles:{ textColor:PDF_COR.cinza, halign:'center' } };
+      const k = contarAcertos(r.respostas, c.inicio, c.fim);
+      const ok = k.total && (k.acertos / k.total) >= 0.5;
+      return { content: k.acertos + '/' + k.total, styles:{ textColor: ok ? PDF_COR.verde : PDF_COR.vermelho, fontStyle:'bold', halign:'center', fontSize: 10 } };
+    });
+    return [ String(idx+1), nome, '' ].concat(cels);
+  });
+  const cs = { 0:{ cellWidth:wNum, halign:'center' }, 1:{ cellWidth:wNome, fontSize:fs }, 2:{ cellWidth:wAss } };
+  colunas.forEach((c,i)=>{ cs[3+i] = { cellWidth:wRes }; });
+  doc.autoTable({
+    startY: y0, margin:{ left:mx, right:mx, bottom:8 }, theme:'grid',
+    head: [[ 'Nº', 'Aluno', 'Assinatura' ].concat(colunas.map(c=>c.rotulo)) ],
+    body, columnStyles: cs,
+    styles:{ font:'helvetica', fontSize:9, cellPadding:{ top:0.6, bottom:0.6, left:1.5, right:1.5 }, lineColor:PDF_COR.linha, lineWidth:0.2, textColor:0, valign:'middle', minCellHeight:rowH, overflow:'hidden' },
+    headStyles:{ fillColor:PDF_COR.navy, textColor:255, halign:'center', fontStyle:'bold', minCellHeight:7 },
+    didDrawCell: (d)=>{
+      if(d.section === 'body' && d.column.index === 2 && imgs[d.row.index]){
+        const im = imgs[d.row.index];
+        let h = d.cell.height - 1.2, w = h * im.w / im.h;
+        if(w > d.cell.width - 1.2){ w = d.cell.width - 1.2; h = w * im.h / im.w; }
+        doc.addImage(im.src, 'PNG', d.cell.x + 0.6, d.cell.y + (d.cell.height - h)/2, w, h);
+      }
+    }
+  });
+}
+
+function pdfDetalhe(doc, titulo, f){
+  const q = f.fim - f.inicio + 1;
+  const orient = q > 16 ? 'l' : 'p';
+  doc.addPage('a4', orient);
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const y0 = pdfCabecalho(doc, titulo);
+  const mx = 8, usable = W - 2*mx;
+  const wNome = orient === 'l' ? 62 : 52;
+  const wq = (usable - wNome) / q;
+  const n = Math.max(1, state.alunos.length + 1);
+  const rowH = Math.max(4.6, Math.min(8, (H - 10 - y0 - 8) / (n + 1)));
+  const fsq = wq < 5 ? 6.5 : 8;
+  let fs = 8.5;
+  doc.setFont('helvetica','normal'); doc.setFontSize(fs);
+  const maior = state.alunos.reduce((m,nm)=>Math.max(m, doc.getTextWidth(nm)), 0);
+  if(maior > wNome - 3) fs = Math.max(5.5, fs * (wNome - 3) / maior);
+  const head = [ ['Aluno'].concat(Array.from({length:q}, (_,i)=>String(f.inicio + i))) ];
+  const gab = [ { content:'Gabarito', styles:{ fillColor:PDF_COR.ouro, textColor:PDF_COR.navy, fontStyle:'bold', fontSize:fs } } ].concat(
+    Array.from({length:q}, (_,i)=>({ content: state.gabarito[f.inicio-1+i] || '-', styles:{ fillColor:PDF_COR.ouro, textColor:PDF_COR.navy, fontStyle:'bold', halign:'center' } })));
+  const linhas = state.alunos.map((nome, idx)=>{
+    const r = state.resultados.find(res=>res.alunoIndex === idx);
+    const row = [ nome ];
+    for(let k=f.inicio; k<=f.fim; k++){
+      if(!r){ row.push({ content:'', styles:{ fillColor:PDF_COR.cinzaBg } }); continue; }
+      const m = r.respostas[k-1], c = state.gabarito[k-1];
+      if(!m) row.push({ content:'-', styles:{ fillColor:PDF_COR.cinzaBg, textColor:PDF_COR.cinza, halign:'center' } });
+      else if(m === c) row.push({ content:m, styles:{ fillColor:PDF_COR.verdeBg, textColor:PDF_COR.verde, fontStyle:'bold', halign:'center' } });
+      else row.push({ content:m, styles:{ fillColor:PDF_COR.vermelhoBg, textColor:PDF_COR.vermelho, fontStyle:'bold', halign:'center' } });
+    }
+    return row;
+  });
+  const cs = { 0:{ cellWidth:wNome, fontSize:fs } };
+  for(let i=1;i<=q;i++) cs[i] = { cellWidth:wq, halign:'center' };
+  doc.autoTable({
+    startY: y0, margin:{ left:mx, right:mx, bottom:8 }, theme:'grid',
+    head, body: [gab].concat(linhas), columnStyles: cs,
+    styles:{ font:'helvetica', fontSize:fsq, cellPadding:{ top:0.4, bottom:0.4, left:1, right:1 }, lineColor:PDF_COR.linha, lineWidth:0.2, textColor:0, valign:'middle', minCellHeight:rowH, overflow:'hidden' },
+    headStyles:{ fillColor:PDF_COR.navy, textColor:255, halign:'center', fontStyle:'bold', minCellHeight:6 }
+  });
+}
+
+function nomeArquivoPdf(){
+  const base = ['CORGAB', state.meta.turma || turmaAtivaObj().nome, state.meta.disciplina || state.meta.bimestre || 'resultados'].join('_');
+  return base.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'') + '.pdf';
+}
+
+async function baixarPdf(){
+  if(!state.resultados.length){ alert('Ainda não há provas corrigidas nesta turma para gerar o PDF.'); return; }
+  const btn = document.getElementById('btnBaixarPdf');
+  const txt = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Gerando PDF…';
+  try{
+    await ensurePdfLib();
+    const imgs = await Promise.all(state.alunos.map((_,i)=> signatureCrops[i] ? carregarImg(signatureCrops[i]) : Promise.resolve(null)));
+    const doc = new window.jspdf.jsPDF({ unit:'mm', format:'a4' });
+    if(state.materias.length){
+      const cols = state.materias.map(m=>{ const fm = faixaDaVisao(m.id); return { rotulo: m.nome || 'Matéria', inicio: fm.inicio, fim: fm.fim }; })
+        .concat([{ rotulo:'Total', inicio:1, fim:state.config.numQuestoes }]);
+      pdfResultados(doc, 'RESULTADOS DO SIMULADO - TODAS AS MATÉRIAS', cols, true, imgs);
+      state.materias.forEach(m=>{
+        const f = faixaDaVisao(m.id);
+        pdfResultados(doc, 'RESULTADOS DO SIMULADO - ' + (f.nome || '').toUpperCase(), [{ rotulo:'Acertos', inicio:f.inicio, fim:f.fim }], false, imgs);
+        pdfDetalhe(doc, 'DETALHAMENTO - ' + (f.nome || '').toUpperCase(), f);
+      });
+    }else{
+      const f = faixaDaVisao('geral');
+      pdfResultados(doc, 'RESULTADOS DO SIMULADO', [{ rotulo:'Acertos', inicio:f.inicio, fim:f.fim }], false, imgs);
+      pdfDetalhe(doc, 'DETALHAMENTO - QUESTÕES ACERTADAS E ERRADAS', f);
+    }
+    doc.deletePage(1);   // página em branco inicial
+    const total = doc.getNumberOfPages();
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    for(let i=1;i<=total;i++){
+      doc.setPage(i);
+      const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(130);
+      doc.text('CORGAB - Corretor de Gabaritos · ' + hoje, 8, H - 4);
+      doc.text('Pág. ' + i + '/' + total, W - 8, H - 4, { align:'right' });
+    }
+    doc.save(nomeArquivoPdf());
+    showToast('✔ PDF gerado: ' + nomeArquivoPdf());
+  }catch(err){
+    console.error(err);
+    if(confirm('Não foi possível gerar o arquivo PDF (' + err.message + ').\n\nDeseja abrir a impressão do navegador? Nela, escolha "Salvar como PDF".')) window.print();
+  }finally{
+    btn.disabled = false; btn.textContent = txt;
+  }
+}
+document.getElementById('btnBaixarPdf').addEventListener('click', baixarPdf);
 
 /* ============================================================
    INIT
